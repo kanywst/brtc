@@ -1,0 +1,17 @@
+version: 2
+
+run:
+  timeout: 5m
+  issues-exit-code: 1
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - ineffassign
+    - misspell
+    - errcheck
+  disable-all: true
+
+issues:
+  exclude-use-default: false
