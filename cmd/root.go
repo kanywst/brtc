@@ -150,7 +150,7 @@ func Execute() error {
 }
 
 func init() {
-	rootCmd.Flags().StringVar(&hwProfile, "hw", "rtx-4090", "Attacker's hardware profile (rtx-4090, cpu-standard, aws-p5.48xlarge)")
+	rootCmd.Flags().StringVar(&hwProfile, "hw", "rtx-4090", "Attacker's hardware profile (rtx-4090, rtx-3060, gtx-1080ti, mac-m3-max, mac-m3, cpu-standard, aws-p5.48xlarge, raspberry-pi-4)")
 	rootCmd.Flags().StringVar(&algo, "algo", "bcrypt", "Server-side hash algorithm (md5, sha256, bcrypt, argon2id)")
 	rootCmd.Flags().IntVar(&workFactor, "cost", 10, "Work factor for algorithms like bcrypt")
 	rootCmd.Flags().StringVar(&budget, "budget", "", "Attacker's budget in USD (e.g., 1000usd)")

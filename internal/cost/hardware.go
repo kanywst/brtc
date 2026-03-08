@@ -17,6 +17,14 @@ type HardwareProfile struct {
 }
 
 var Profiles = map[string]HardwareProfile{
+	"mac-m3": {
+		Name:             "Apple M3 (Base)",
+		BaseHashesMD5:    8_000_000_000,
+		BaseHashesSHA256: 1_500_000_000,
+		BaseHashesBcrypt: 5_500,
+		BaseHashesArgon2: 60,
+		CostPerHourUSD:   0.0, // Owned
+	},
 	"rtx-4090": {
 		Name:             "NVIDIA RTX 4090 (Single)",
 		BaseHashesMD5:    164_000_000_000,
@@ -25,14 +33,6 @@ var Profiles = map[string]HardwareProfile{
 		BaseHashesArgon2: 1_000,
 		CostPerHourUSD:   0.30, // Approx Vast.ai spot price
 	},
-	"cpu-standard": {
-		Name:             "Standard 8-Core CPU",
-		BaseHashesMD5:    1_000_000_000,
-		BaseHashesSHA256: 200_000_000,
-		BaseHashesBcrypt: 5_000,
-		BaseHashesArgon2: 50,
-		CostPerHourUSD:   0.05, // e.g., t3.large spot
-	},
 	"aws-p5.48xlarge": {
 		Name:             "AWS p5.48xlarge (8x H100)",
 		BaseHashesMD5:    164_000_000_000 * 25, // roughly 25x a single RTX 4090
@@ -40,6 +40,30 @@ var Profiles = map[string]HardwareProfile{
 		BaseHashesBcrypt: 100_000 * 25,
 		BaseHashesArgon2: 1_000 * 25,
 		CostPerHourUSD:   40.0, // Approx spot price
+	},
+	"rtx-3060": {
+		Name:             "NVIDIA RTX 3060",
+		BaseHashesMD5:    22_000_000_000,
+		BaseHashesSHA256: 3_000_000_000,
+		BaseHashesBcrypt: 12_000,
+		BaseHashesArgon2: 120,
+		CostPerHourUSD:   0.05, // e.g. Vast.ai low end spot
+	},
+	"gtx-1080ti": {
+		Name:             "NVIDIA GTX 1080 Ti (Historical, 2017)",
+		BaseHashesMD5:    34_000_000_000,
+		BaseHashesSHA256: 4_500_000_000,
+		BaseHashesBcrypt: 22_700,
+		BaseHashesArgon2: 80,
+		CostPerHourUSD:   0.0, // Owned
+	},
+	"cpu-standard": {
+		Name:             "Standard 8-Core CPU",
+		BaseHashesMD5:    1_000_000_000,
+		BaseHashesSHA256: 200_000_000,
+		BaseHashesBcrypt: 5_000,
+		BaseHashesArgon2: 50,
+		CostPerHourUSD:   0.05, // e.g., t3.large spot
 	},
 }
 
