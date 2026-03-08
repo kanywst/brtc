@@ -1,4 +1,4 @@
-version: 2
+version: "2"
 
 run:
   timeout: 5m
@@ -12,7 +12,5 @@ linters:
     - ineffassign
     - misspell
     - errcheck
-  disable-all: true
 
-issues:
-  exclude-use-default: false
+
