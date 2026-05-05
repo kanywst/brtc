@@ -13,6 +13,36 @@ type EntropyResult struct {
 	Combinations *big.Int
 }
 
+// FromGuesses builds an EntropyResult from an externally supplied guess
+// count (typically the `guesses` field of a zxcvbn report). CharSpace
+// is left at 0 to signal "external estimate, no character-class
+// inference"; downstream code that depends on CharSpace (e.g.
+// MaxLengthForBudget) should treat 0 as "skip".
+func FromGuesses(guesses *big.Int, password string) EntropyResult {
+	length := len([]rune(password))
+	return EntropyResult{
+		CharSpace:    0,
+		Length:       length,
+		Entropy:      log2BigInt(guesses),
+		Combinations: guesses,
+	}
+}
+
+// log2BigInt computes log2(n) for arbitrarily large positive integers
+// without overflowing float64. For n that fits in a float64, it uses
+// the direct math.Log2; for larger values it falls back to the bit
+// length, which is exact for powers of two and within 1 bit otherwise.
+func log2BigInt(n *big.Int) float64 {
+	if n == nil || n.Sign() <= 0 {
+		return 0
+	}
+	f, _ := new(big.Float).SetInt(n).Float64()
+	if math.IsInf(f, 1) || f <= 0 {
+		return float64(n.BitLen() - 1)
+	}
+	return math.Log2(f)
+}
+
 func Analyze(password string) EntropyResult {
 	hasLower := false
 	hasUpper := false
