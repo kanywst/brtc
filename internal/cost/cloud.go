@@ -21,16 +21,17 @@ func ParseBudget(budgetStr string) (float64, error) {
 }
 
 // MaxLengthForBudget calculates how many characters of a given charSpace
-// can be cracked within the given budget USD, assuming the specified algo and hardware.
-func MaxLengthForBudget(budgetUSD float64, hw string, algo string, workFactor int, charSpace int) int {
+// can be cracked within the given budget USD, assuming the specified
+// algo, hardware, work factor, and (for argon2id) memory parameter.
+//
+// memoryMB is forwarded verbatim to CalculateHashRate; pass 0 to use
+// the YAML baseline.
+func MaxLengthForBudget(budgetUSD float64, hw, algo string, workFactor, memoryMB, charSpace int) int {
 	if budgetUSD <= 0 || charSpace <= 1 {
 		return 0
 	}
 
-	p, ok := Profiles[strings.ToLower(hw)]
-	if !ok {
-		p = Profiles["rtx-4090"]
-	}
+	p := lookupProfile(hw)
 
 	if p.CostPerHourUSD <= 0 {
 		return 999 // Effectively infinite characters if hardware cost is $0
@@ -40,7 +41,7 @@ func MaxLengthForBudget(budgetUSD float64, hw string, algo string, workFactor in
 	maxHours := budgetUSD / p.CostPerHourUSD
 	maxSeconds := maxHours * 3600.0
 
-	hashRate := CalculateHashRate(hw, algo, workFactor)
+	hashRate := CalculateHashRate(hw, algo, workFactor, memoryMB)
 
 	// T_avg = (R^L / 2) / H  =>  R^L / 2 = T_avg * H  =>  R^L = 2 * T_avg * H
 	// L * log(R) = log(2 * T_avg * H)
