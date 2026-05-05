@@ -25,6 +25,22 @@ var Profiles = map[string]HardwareProfile{
 		BaseHashesArgon2: 60,
 		CostPerHourUSD:   0.0, // Owned
 	},
+	"mac-m3-max": {
+		Name:             "Apple M3 Max (40-core GPU)",
+		BaseHashesMD5:    24_000_000_000,
+		BaseHashesSHA256: 4_500_000_000,
+		BaseHashesBcrypt: 16_000,
+		BaseHashesArgon2: 180,
+		CostPerHourUSD:   0.0, // Owned
+	},
+	"raspberry-pi-4": {
+		Name:             "Raspberry Pi 4 (4-core ARM Cortex-A72)",
+		BaseHashesMD5:    50_000_000,
+		BaseHashesSHA256: 10_000_000,
+		BaseHashesBcrypt: 200,
+		BaseHashesArgon2: 3,
+		CostPerHourUSD:   0.0, // Owned
+	},
 	"rtx-4090": {
 		Name:             "NVIDIA RTX 4090 (Single)",
 		BaseHashesMD5:    164_000_000_000,
