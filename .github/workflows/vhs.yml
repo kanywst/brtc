@@ -1,0 +1,69 @@
+name: VHS demo
+
+on:
+  pull_request:
+    paths:
+      - assets/demo.tape
+      - "**/*.go"
+      - go.mod
+      - go.sum
+      - .github/workflows/vhs.yml
+  push:
+    branches: [main]
+    paths:
+      - assets/demo.tape
+      - "**/*.go"
+      - go.mod
+      - go.sum
+      - .github/workflows/vhs.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Render demo.gif
+    runs-on: ubuntu-latest
+    permissions:
+      # write needed only on the main-branch commit step. Pull-request
+      # runs from forks intentionally fall through to the artifact path.
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Build brtc binary
+        run: go build -o brtc .
+
+      - name: Render VHS tape
+        uses: charmbracelet/vhs-action@v2
+        with:
+          path: assets/demo.tape
+
+      - name: Upload preview (pull request)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-gif
+          path: assets/demo.gif
+          if-no-files-found: error
+
+      - name: Commit regenerated gif (main)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- assets/demo.gif; then
+            echo "demo.gif unchanged; nothing to commit."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add assets/demo.gif
+          git commit -m "chore(demo): regenerate VHS gif [skip ci]"
+          git push
