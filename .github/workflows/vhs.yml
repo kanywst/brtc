@@ -42,9 +42,17 @@ jobs:
         run: go build -o brtc .
 
       - name: Render VHS tape
-        uses: charmbracelet/vhs-action@v2
-        with:
-          path: assets/demo.tape
+        # Run VHS via its official Docker image rather than vhs-action.
+        # vhs-action@v2 is currently unreliable on ubuntu-latest because
+        # its embedded ffmpeg installer fails. The Charm-published image
+        # bundles ttyd, ffmpeg, and the fonts needed for the gif.
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -v "$PWD:/vhs" \
+            -w /vhs \
+            ghcr.io/charmbracelet/vhs:latest \
+            assets/demo.tape
 
       - name: Upload preview (pull request)
         if: github.event_name == 'pull_request'
