@@ -7,6 +7,11 @@
 
 ---
 
+> **brtc is a cost calculator, not a strength meter.**
+> It converts an entropy/guess count into an offline-attack price tag in USD against a chosen GPU or cloud profile.
+> It does **not** detect dictionary words, leetspeak, keyboard walks, or other patterns — `P@ssw0rd!` looks "strong" by raw entropy alone but is trivially guessable in practice.
+> For real-world strength evaluation, **pair brtc with [zxcvbn](https://github.com/dropbox/zxcvbn)** (or [zxcvbn-ts](https://github.com/zxcvbn-ts/zxcvbn)) and feed its `guesses` value into brtc via `--guesses` (coming in a follow-up release).
+
 **brtc (Brute-force Cost)** is a CLI tool that translates abstract concepts like "entropy" into harsh reality: **exactly how much time and cloud infrastructure money it takes to crack a password.**
 
 Instead of just telling you a password is "Weak" or "Strong", `brtc` pits your string against an RTX 4090 rig or an AWS 8x H100 cluster running `bcrypt`, and gives you the receipt.
