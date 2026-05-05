@@ -7,7 +7,7 @@ import (
 
 func TestCalculateHashRate_KnownProfile(t *testing.T) {
 	got := CalculateHashRate("rtx-4090", "md5", 10)
-	want := Profiles["rtx-4090"].BaseHashesMD5
+	want := Profiles["rtx-4090"].Hashrates["md5"]
 	if got != want {
 		t.Errorf("rtx-4090 md5 = %v, want %v", got, want)
 	}
@@ -15,14 +15,14 @@ func TestCalculateHashRate_KnownProfile(t *testing.T) {
 
 func TestCalculateHashRate_UnknownProfileFallsBackTo4090(t *testing.T) {
 	got := CalculateHashRate("does-not-exist", "sha256", 10)
-	want := Profiles["rtx-4090"].BaseHashesSHA256
+	want := Profiles["rtx-4090"].Hashrates["sha256"]
 	if got != want {
 		t.Errorf("unknown hw fallback sha256 = %v, want %v", got, want)
 	}
 }
 
 func TestCalculateHashRate_BcryptScalesByCost(t *testing.T) {
-	base := Profiles["rtx-4090"].BaseHashesBcrypt // baseline at cost=5
+	base := Profiles["rtx-4090"].Hashrates["bcrypt"] // baseline at cost=5
 
 	at10 := CalculateHashRate("rtx-4090", "bcrypt", 10)
 	wantAt10 := base / math.Pow(2, 5)
@@ -43,7 +43,7 @@ func TestCalculateHashRate_BcryptScalesByCost(t *testing.T) {
 }
 
 func TestCalculateHashRate_Argon2LinearScaling(t *testing.T) {
-	base := Profiles["rtx-4090"].BaseHashesArgon2
+	base := Profiles["rtx-4090"].Hashrates["argon2id"]
 	got := CalculateHashRate("rtx-4090", "argon2id", 4)
 	want := base / 4
 	if got != want {
@@ -77,5 +77,31 @@ func TestProfilesContainAdvertisedNames(t *testing.T) {
 		if _, ok := Profiles[name]; !ok {
 			t.Errorf("hardware profile %q is advertised but missing from Profiles", name)
 		}
+	}
+}
+
+// Each profile in hashrates.yaml must carry hashrates for every algorithm
+// the CLI exposes via --algo, plus a citation. Catches data drift where a
+// new algorithm or profile is added but the YAML row is left half-filled.
+func TestProfilesAreComplete(t *testing.T) {
+	requiredAlgos := []string{"md5", "sha256", "bcrypt", "argon2id"}
+
+	for name, p := range Profiles {
+		t.Run(name, func(t *testing.T) {
+			if p.Name == "" {
+				t.Errorf("profile %q has empty display name", name)
+			}
+			if p.Source == "" {
+				t.Errorf("profile %q must cite a source URL or note", name)
+			}
+			if p.LastReviewed == "" {
+				t.Errorf("profile %q must set last_reviewed", name)
+			}
+			for _, algo := range requiredAlgos {
+				if rate, ok := p.Hashrates[algo]; !ok || rate <= 0 {
+					t.Errorf("profile %q is missing or has non-positive hashrate for %s", name, algo)
+				}
+			}
+		})
 	}
 }
