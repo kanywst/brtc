@@ -1,0 +1,18 @@
+# Build output
+/brtc
+*.exe
+*.test
+*.out
+
+# Coverage
+coverage.txt
+coverage.html
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Claude Code local state
+.claude/
+CLAUDE.md
