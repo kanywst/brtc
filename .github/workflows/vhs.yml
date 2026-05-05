@@ -43,16 +43,25 @@ jobs:
 
       - name: Render VHS tape
         # Run VHS via its official Docker image rather than vhs-action.
-        # vhs-action@v2 is currently unreliable on ubuntu-latest because
-        # its embedded ffmpeg installer fails. The Charm-published image
-        # bundles ttyd, ffmpeg, and the fonts needed for the gif.
+        # vhs-action@v2's embedded ffmpeg installer is unreliable on
+        # ubuntu-latest. The Charm-published image bundles ttyd, ffmpeg,
+        # and fonts.
+        #
+        # --ipc=host: VHS internally drives headless Chrome. With Docker's
+        # default 64MB shared memory, Chrome crashes with
+        # "chrome_crashpad_handler: --database is required" before any
+        # frame is captured. Sharing the host IPC namespace gives Chrome
+        # enough shm to render. Drop the --user override because the
+        # image's ttyd/chrome bits expect the in-image user; ownership of
+        # the produced gif is fixed up via sudo chown after the run.
         run: |
           docker run --rm \
-            --user "$(id -u):$(id -g)" \
+            --ipc=host \
             -v "$PWD:/vhs" \
             -w /vhs \
             ghcr.io/charmbracelet/vhs:latest \
             assets/demo.tape
+          sudo chown -R "$(id -u):$(id -g)" assets/
 
       - name: Upload preview (pull request)
         if: github.event_name == 'pull_request'
