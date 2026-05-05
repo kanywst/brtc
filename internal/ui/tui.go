@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -153,8 +152,7 @@ func (m model) View() string {
 func RunTUI(data OutputData) error {
 	p := tea.NewProgram(initialModel(data))
 	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error running program: %v", err)
-		os.Exit(1)
+		return fmt.Errorf("tui: %w", err)
 	}
 	return nil
 }
