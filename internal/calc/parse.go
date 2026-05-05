@@ -57,6 +57,12 @@ func ParseGuesses(s string) (*big.Int, error) {
 	if f.Sign() < 0 {
 		return nil, fmt.Errorf("guesses: must be non-negative")
 	}
+	if f.IsInf() {
+		// big.ParseFloat happily accepts "inf"/"+inf", and big.Float.Int
+		// returns a nil *big.Int for infinities — which would then panic
+		// downstream in TimeToCrack via big.Float.SetInt(nil).
+		return nil, fmt.Errorf("guesses: must be finite")
+	}
 	n, _ := f.Int(nil)
 	return n, nil
 }

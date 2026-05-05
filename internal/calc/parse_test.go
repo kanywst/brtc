@@ -63,6 +63,8 @@ func TestParseGuesses(t *testing.T) {
 		{"", nil, true},
 		{"-5", nil, true},
 		{"abc", nil, true},
+		{"inf", nil, true},
+		{"+inf", nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
