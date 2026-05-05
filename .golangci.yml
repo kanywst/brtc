@@ -15,6 +15,15 @@ linters:
     - staticcheck
     - unconvert
     - unused
+  settings:
+    revive:
+      rules:
+        # Don't force godoc-style WHAT comments on every exported symbol;
+        # this repo prefers WHY-only comments. Keep the rest of revive on.
+        - name: exported
+          disabled: true
+        - name: package-comments
+          disabled: true
 
 formatters:
   enable:

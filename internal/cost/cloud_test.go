@@ -45,7 +45,7 @@ func TestMaxLengthForBudget_OwnedHardwareReturnsSentinel(t *testing.T) {
 func TestMaxLengthForBudget_ScalesWithBudget(t *testing.T) {
 	small := MaxLengthForBudget(1, "rtx-4090", "md5", 10, 94)
 	large := MaxLengthForBudget(1_000_000, "rtx-4090", "md5", 10, 94)
-	if !(large > small) {
+	if large <= small {
 		t.Errorf("larger budget should crack longer passwords: small=%d large=%d", small, large)
 	}
 }
