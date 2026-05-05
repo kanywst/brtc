@@ -48,7 +48,7 @@ var rootCmd = &cobra.Command{
 		entropy := calc.Analyze(password)
 
 		// 2. Hardware HashRate
-		hr := cost.CalculateHashRate(hwProfile, algo, workFactor)
+		hr := cost.CalculateHashRate(hwProfile, algo, workFactor, 0)
 
 		// 3. Time to Crack
 		ttc := calc.TimeToCrack(entropy.Combinations, hr)
@@ -64,7 +64,7 @@ var rootCmd = &cobra.Command{
 
 		var budgetMaxChars int
 		if budgetVal > 0 {
-			budgetMaxChars = cost.MaxLengthForBudget(budgetVal, hwProfile, algo, workFactor, entropy.CharSpace)
+			budgetMaxChars = cost.MaxLengthForBudget(budgetVal, hwProfile, algo, workFactor, 0, entropy.CharSpace)
 		}
 
 		// Compile output data

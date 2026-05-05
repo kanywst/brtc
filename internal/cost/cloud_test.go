@@ -36,22 +36,22 @@ func TestParseBudget(t *testing.T) {
 
 func TestMaxLengthForBudget_OwnedHardwareReturnsSentinel(t *testing.T) {
 	// mac-m3 has CostPerHourUSD = 0, so any budget covers infinite time.
-	got := MaxLengthForBudget(100, "mac-m3", "md5", 10, 94)
+	got := MaxLengthForBudget(100, "mac-m3", "md5", 10, 0, 94)
 	if got != 999 {
 		t.Errorf("owned hardware should return 999 sentinel, got %d", got)
 	}
 }
 
 func TestMaxLengthForBudget_ScalesWithBudget(t *testing.T) {
-	small := MaxLengthForBudget(1, "rtx-4090", "md5", 10, 94)
-	large := MaxLengthForBudget(1_000_000, "rtx-4090", "md5", 10, 94)
+	small := MaxLengthForBudget(1, "rtx-4090", "md5", 10, 0, 94)
+	large := MaxLengthForBudget(1_000_000, "rtx-4090", "md5", 10, 0, 94)
 	if large <= small {
 		t.Errorf("larger budget should crack longer passwords: small=%d large=%d", small, large)
 	}
 }
 
 func TestMaxLengthForBudget_ZeroBudget(t *testing.T) {
-	if got := MaxLengthForBudget(0, "rtx-4090", "md5", 10, 94); got != 0 {
+	if got := MaxLengthForBudget(0, "rtx-4090", "md5", 10, 0, 94); got != 0 {
 		t.Errorf("zero budget should return 0, got %d", got)
 	}
 }

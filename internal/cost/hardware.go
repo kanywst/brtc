@@ -59,7 +59,17 @@ func lookupProfile(hw string) HardwareProfile {
 	return Profiles[fallbackProfile]
 }
 
-func CalculateHashRate(hw string, algo string, workFactor int) float64 {
+// argon2BaselineMemoryMB is the memory parameter the Argon2id baseline
+// hashrates in hashrates.yaml are calibrated against. Doubling memory
+// roughly halves attacker throughput on memory-bandwidth-bound GPUs.
+const argon2BaselineMemoryMB = 64
+
+// CalculateHashRate returns the attacker's hashes-per-second for the
+// given hardware and algorithm parameters.
+//
+// memoryMB is only consulted for argon2id; passing 0 (or any value <=
+// the baseline) leaves the rate at the YAML baseline (m=64MB).
+func CalculateHashRate(hw, algo string, workFactor, memoryMB int) float64 {
 	p := lookupProfile(hw)
 	algo = strings.ToLower(algo)
 
@@ -83,11 +93,15 @@ func CalculateHashRate(hw string, algo string, workFactor int) float64 {
 		}
 		return base / factor
 	case "argon2id":
-		factor := float64(workFactor)
-		if factor < 1 {
-			factor = 1
+		timeFactor := float64(workFactor)
+		if timeFactor < 1 {
+			timeFactor = 1
 		}
-		return base / factor
+		memFactor := 1.0
+		if memoryMB > argon2BaselineMemoryMB {
+			memFactor = float64(memoryMB) / float64(argon2BaselineMemoryMB)
+		}
+		return base / (timeFactor * memFactor)
 	default:
 		return base
 	}
