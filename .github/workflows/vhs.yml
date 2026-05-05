@@ -30,7 +30,7 @@ jobs:
       # runs from forks intentionally fall through to the artifact path.
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
         uses: actions/setup-go@v5
