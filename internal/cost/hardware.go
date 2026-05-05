@@ -39,8 +39,15 @@ func init() {
 		// programmer/build error, not a runtime user error.
 		panic(fmt.Errorf("cost: parse embedded hashrates.yaml: %w", err))
 	}
-	if _, ok := f.Profiles[fallbackProfile]; !ok {
+	fb, ok := f.Profiles[fallbackProfile]
+	if !ok {
 		panic(fmt.Errorf("cost: hashrates.yaml is missing the fallback profile %q", fallbackProfile))
+	}
+	// Unknown algorithms are routed through the bcrypt path (see
+	// CalculateHashRate). The fallback profile must therefore carry a
+	// positive bcrypt rate, otherwise that path silently returns 0.
+	if rate, ok := fb.Hashrates["bcrypt"]; !ok || rate <= 0 {
+		panic(fmt.Errorf("cost: fallback profile %q must have a positive bcrypt hashrate", fallbackProfile))
 	}
 	Profiles = f.Profiles
 }
@@ -56,11 +63,14 @@ func CalculateHashRate(hw string, algo string, workFactor int) float64 {
 	p := lookupProfile(hw)
 	algo = strings.ToLower(algo)
 
-	base, ok := p.Hashrates[algo]
-	if !ok {
-		// Unknown algorithm: fall back to bcrypt as a safe (slow) default.
-		base = p.Hashrates["bcrypt"]
+	if _, ok := p.Hashrates[algo]; !ok {
+		// Unknown algorithm: route through bcrypt entirely (rate AND
+		// scaling). Returning the bare bcrypt baseline without applying
+		// the cost-factor scaling would silently overestimate the
+		// attacker for any workFactor > 5.
+		algo = "bcrypt"
 	}
+	base := p.Hashrates[algo]
 
 	switch algo {
 	case "bcrypt":
