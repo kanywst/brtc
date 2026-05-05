@@ -13,6 +13,7 @@ type OutputData struct {
 	Combinations   *big.Int `json:"combinations"`
 	Algorithm      string   `json:"algorithm"`
 	WorkFactor     int      `json:"work_factor"`
+	MemoryMB       int      `json:"memory_mb,omitempty"`
 	Hardware       string   `json:"hardware_profile"`
 	HashRate       float64  `json:"hash_rate_per_sec"`
 	TimeToCrackSec float64  `json:"time_to_crack_seconds"`
