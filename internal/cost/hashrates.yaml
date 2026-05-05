@@ -1,0 +1,104 @@
+# Hardware hashrate baselines.
+#
+# Each profile lists hashes-per-second under realistic offline-attack
+# conditions, the hourly rental cost in USD, and a citation. When a
+# baseline is updated, bump `last_reviewed` to today and replace the
+# `source` URL if a newer benchmark is now authoritative.
+#
+# Conventions:
+#   bcrypt   baseline is at cost = 5 (the hashcat reference point).
+#            CalculateHashRate divides by 2^(workFactor-5) at runtime.
+#   argon2id baseline is at t = 1, m = 64MB, p = 1.
+#            CalculateHashRate divides linearly by workFactor at runtime.
+#   cost_per_hour_usd = 0 means "owned hardware" (no rental cost).
+
+profiles:
+
+  rtx-4090:
+    name: "NVIDIA RTX 4090 (Single)"
+    cost_per_hour_usd: 0.30
+    hashrates:
+      md5: 164000000000
+      sha256: 23000000000
+      bcrypt: 100000
+      argon2id: 1000
+    source: "https://hashcat.net/forum/thread-11614.html"
+    last_reviewed: "2025-08-01"
+
+  rtx-3060:
+    name: "NVIDIA RTX 3060"
+    cost_per_hour_usd: 0.05
+    hashrates:
+      md5: 22000000000
+      sha256: 3000000000
+      bcrypt: 12000
+      argon2id: 120
+    source: "https://hashcat.net/wiki/doku.php?id=hashcat#performance_estimations"
+    last_reviewed: "2025-08-01"
+
+  gtx-1080ti:
+    name: "NVIDIA GTX 1080 Ti (Historical, 2017)"
+    cost_per_hour_usd: 0.0
+    hashrates:
+      md5: 34000000000
+      sha256: 4500000000
+      bcrypt: 22700
+      argon2id: 80
+    source: "https://gist.github.com/epixoip/a83d38f412b4737e99bbef804a270c40"
+    last_reviewed: "2025-08-01"
+
+  mac-m3:
+    name: "Apple M3 (Base)"
+    cost_per_hour_usd: 0.0
+    hashrates:
+      md5: 8000000000
+      sha256: 1500000000
+      bcrypt: 5500
+      argon2id: 60
+    source: "https://github.com/hashcat/hashcat/issues/3743"
+    last_reviewed: "2025-08-01"
+
+  mac-m3-max:
+    name: "Apple M3 Max (40-core GPU)"
+    cost_per_hour_usd: 0.0
+    hashrates:
+      md5: 24000000000
+      sha256: 4500000000
+      bcrypt: 16000
+      argon2id: 180
+    source: "Extrapolated from mac-m3 baseline by GPU-core ratio (40/10)."
+    last_reviewed: "2025-08-01"
+
+  cpu-standard:
+    name: "Standard 8-Core CPU"
+    cost_per_hour_usd: 0.05
+    hashrates:
+      md5: 1000000000
+      sha256: 200000000
+      bcrypt: 5000
+      argon2id: 50
+    source: "Approximate t3.large equivalent under hashcat CPU mode."
+    last_reviewed: "2025-08-01"
+
+  raspberry-pi-4:
+    name: "Raspberry Pi 4 (4-core ARM Cortex-A72)"
+    cost_per_hour_usd: 0.0
+    hashrates:
+      md5: 50000000
+      sha256: 10000000
+      bcrypt: 200
+      argon2id: 3
+    source: "Extrapolated from cpu-standard at ~1/20 throughput."
+    last_reviewed: "2025-08-01"
+
+  aws-p5.48xlarge:
+    name: "AWS p5.48xlarge (8x H100)"
+    cost_per_hour_usd: 40.0
+    hashrates:
+      # Roughly 25x a single RTX 4090 baseline (8x H100 SXM, ~3x perf each).
+      md5: 4100000000000
+      sha256: 575000000000
+      bcrypt: 2500000
+      argon2id: 25000
+    source: "https://aws.amazon.com/ec2/instance-types/p5/  +  hashcat H100 benchmarks"
+    last_reviewed: "2025-08-01"

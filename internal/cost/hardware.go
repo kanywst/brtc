@@ -1,129 +1,90 @@
 package cost
 
 import (
+	_ "embed"
+	"fmt"
 	"math"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
-// Hardware profiles and their base hashrates (Hashes/second).
-// Base hashrates are approximated for realistic conditions.
+//go:embed hashrates.yaml
+var hashratesYAML []byte
+
 type HardwareProfile struct {
-	Name             string
-	BaseHashesMD5    float64
-	BaseHashesSHA256 float64
-	BaseHashesBcrypt float64 // At cost = 5
-	BaseHashesArgon2 float64
-	CostPerHourUSD   float64 // Cloud instance spot price or rental cost
+	Name           string             `yaml:"name"`
+	CostPerHourUSD float64            `yaml:"cost_per_hour_usd"`
+	Hashrates      map[string]float64 `yaml:"hashrates"`
+	Source         string             `yaml:"source,omitempty"`
+	LastReviewed   string             `yaml:"last_reviewed,omitempty"`
 }
 
-var Profiles = map[string]HardwareProfile{
-	"mac-m3": {
-		Name:             "Apple M3 (Base)",
-		BaseHashesMD5:    8_000_000_000,
-		BaseHashesSHA256: 1_500_000_000,
-		BaseHashesBcrypt: 5_500,
-		BaseHashesArgon2: 60,
-		CostPerHourUSD:   0.0, // Owned
-	},
-	"mac-m3-max": {
-		Name:             "Apple M3 Max (40-core GPU)",
-		BaseHashesMD5:    24_000_000_000,
-		BaseHashesSHA256: 4_500_000_000,
-		BaseHashesBcrypt: 16_000,
-		BaseHashesArgon2: 180,
-		CostPerHourUSD:   0.0, // Owned
-	},
-	"raspberry-pi-4": {
-		Name:             "Raspberry Pi 4 (4-core ARM Cortex-A72)",
-		BaseHashesMD5:    50_000_000,
-		BaseHashesSHA256: 10_000_000,
-		BaseHashesBcrypt: 200,
-		BaseHashesArgon2: 3,
-		CostPerHourUSD:   0.0, // Owned
-	},
-	"rtx-4090": {
-		Name:             "NVIDIA RTX 4090 (Single)",
-		BaseHashesMD5:    164_000_000_000,
-		BaseHashesSHA256: 23_000_000_000,
-		BaseHashesBcrypt: 100_000,
-		BaseHashesArgon2: 1_000,
-		CostPerHourUSD:   0.30, // Approx Vast.ai spot price
-	},
-	"aws-p5.48xlarge": {
-		Name:             "AWS p5.48xlarge (8x H100)",
-		BaseHashesMD5:    164_000_000_000 * 25, // roughly 25x a single RTX 4090
-		BaseHashesSHA256: 23_000_000_000 * 25,
-		BaseHashesBcrypt: 100_000 * 25,
-		BaseHashesArgon2: 1_000 * 25,
-		CostPerHourUSD:   40.0, // Approx spot price
-	},
-	"rtx-3060": {
-		Name:             "NVIDIA RTX 3060",
-		BaseHashesMD5:    22_000_000_000,
-		BaseHashesSHA256: 3_000_000_000,
-		BaseHashesBcrypt: 12_000,
-		BaseHashesArgon2: 120,
-		CostPerHourUSD:   0.05, // e.g. Vast.ai low end spot
-	},
-	"gtx-1080ti": {
-		Name:             "NVIDIA GTX 1080 Ti (Historical, 2017)",
-		BaseHashesMD5:    34_000_000_000,
-		BaseHashesSHA256: 4_500_000_000,
-		BaseHashesBcrypt: 22_700,
-		BaseHashesArgon2: 80,
-		CostPerHourUSD:   0.0, // Owned
-	},
-	"cpu-standard": {
-		Name:             "Standard 8-Core CPU",
-		BaseHashesMD5:    1_000_000_000,
-		BaseHashesSHA256: 200_000_000,
-		BaseHashesBcrypt: 5_000,
-		BaseHashesArgon2: 50,
-		CostPerHourUSD:   0.05, // e.g., t3.large spot
-	},
+type profilesFile struct {
+	Profiles map[string]HardwareProfile `yaml:"profiles"`
 }
 
-// CalculateHashRate computes the exact hashes per second for a given algo and workfactor.
+// Profiles is populated at init time from the embedded hashrates.yaml.
+var Profiles map[string]HardwareProfile
+
+// fallbackProfile is used when the caller passes an --hw value not
+// present in Profiles. Kept as a constant rather than rtx-4090 magic
+// strings so the fallback target is greppable.
+const fallbackProfile = "rtx-4090"
+
+func init() {
+	var f profilesFile
+	if err := yaml.Unmarshal(hashratesYAML, &f); err != nil {
+		// hashrates.yaml is embedded at build time; a parse error is a
+		// programmer/build error, not a runtime user error.
+		panic(fmt.Errorf("cost: parse embedded hashrates.yaml: %w", err))
+	}
+	if _, ok := f.Profiles[fallbackProfile]; !ok {
+		panic(fmt.Errorf("cost: hashrates.yaml is missing the fallback profile %q", fallbackProfile))
+	}
+	Profiles = f.Profiles
+}
+
+func lookupProfile(hw string) HardwareProfile {
+	if p, ok := Profiles[strings.ToLower(hw)]; ok {
+		return p
+	}
+	return Profiles[fallbackProfile]
+}
+
 func CalculateHashRate(hw string, algo string, workFactor int) float64 {
-	p, ok := Profiles[strings.ToLower(hw)]
+	p := lookupProfile(hw)
+	algo = strings.ToLower(algo)
+
+	base, ok := p.Hashrates[algo]
 	if !ok {
-		p = Profiles["rtx-4090"]
+		// Unknown algorithm: fall back to bcrypt as a safe (slow) default.
+		base = p.Hashrates["bcrypt"]
 	}
 
-	switch strings.ToLower(algo) {
-	case "md5":
-		return p.BaseHashesMD5
-	case "sha256":
-		return p.BaseHashesSHA256
+	switch algo {
 	case "bcrypt":
-		// Bcrypt cost is exponential (2^cost). Base is cost=5.
-		// Ex: cost=10 is 2^5 = 32 times slower.
+		// Bcrypt cost is exponential (2^cost). Baseline is cost=5;
+		// e.g. cost=10 is 2^5 = 32 times slower. workFactor < 5 is
+		// clamped so an unrealistic input never exceeds the baseline.
 		factor := math.Pow(2, float64(workFactor-5))
 		if factor < 1 {
 			factor = 1
 		}
-		return p.BaseHashesBcrypt / factor
+		return base / factor
 	case "argon2id":
-		// Argon2id workfactor scaling (roughly linear with time/memory limits, assuming default memory)
-		// Assuming base is t=1. If workFactor > 1, divided by workFactor.
 		factor := float64(workFactor)
 		if factor < 1 {
 			factor = 1
 		}
-		return p.BaseHashesArgon2 / factor
+		return base / factor
 	default:
-		return p.BaseHashesBcrypt // Safe fallback
+		return base
 	}
 }
 
-// TotalCost calculates the total cost to crack based on the time it takes.
-// timeInSeconds allows calculation of fractions of hours.
 func TotalCost(hw string, timeInSeconds float64) float64 {
-	p, ok := Profiles[strings.ToLower(hw)]
-	if !ok {
-		p = Profiles["rtx-4090"]
-	}
-
+	p := lookupProfile(hw)
 	hours := timeInSeconds / 3600.0
 	return hours * p.CostPerHourUSD
 }
