@@ -95,7 +95,9 @@ echo "P@ssw0rd123!" | brtc
 | ------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--hw`              | `rtx-4090` | The attacker's hardware profile (`rtx-4090`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`) |
 | `--algo`            | `bcrypt`   | The target hash algorithm (`md5`, `sha256`, `bcrypt`, `argon2id`)                                                                                   |
-| `--cost`            | `10`       | The work factor / cost applied to algorithms like bcrypt                                                                                            |
+| `--cost`            | `10`       | Work factor (bcrypt) or time iterations (argon2id)                                                                                                  |
+| `--memory`          | `""`       | Argon2id memory parameter (e.g. `64m`, `128m`, `1g`). Defaults to the profile baseline (64MB)                                                       |
+| `--guesses`         | `""`       | Override entropy with an external guess count from zxcvbn or similar (e.g. `1e10`, `12345`). Makes the password argument optional                   |
 | `--budget`          | `""`       | Set an attacker budget (e.g. `1000usd`) to see the max characters they can afford to crack                                                          |
 | `--output`, `-o`    | `tui`      | Output format (`tui`, `json`, `sarif`)                                                                                                              |
 | `--fail-under-time` | `""`       | CI/CD threshold to fail the run (e.g., `1y`, `30d`, `12h`)                                                                                          |
@@ -120,6 +122,26 @@ brtc -o json "P@ssw0rd123!" | jq .
 brtc --fail-under-time 1m "short"
 # Error: gatekeeper failed: estimated crack time (31.7 minutes) is less than required (1.0 months)
 # Exit code 1
+```
+
+#### Pairing with zxcvbn (recommended)
+
+`brtc`'s built-in entropy estimator is naive — it counts character classes and treats every position as independent. `P@ssw0rd!` looks "strong" to it but is trivially guessable to a real attacker. For accurate strength evaluation, run [zxcvbn](https://github.com/dropbox/zxcvbn) (or [zxcvbn-ts](https://github.com/zxcvbn-ts/zxcvbn)) first, then feed its `guesses` field into `brtc`:
+
+```bash
+guesses=$(zxcvbn-cli "P@ssw0rd!" --json | jq -r .guesses)
+brtc --guesses "$guesses" --algo bcrypt --cost 12 --hw aws-p5.48xlarge
+# Combinations come from zxcvbn; brtc converts them into time + USD.
+```
+
+#### Argon2id Memory Sweep
+
+Argon2id is a memory-hard function. Bumping the memory parameter is a defender's most effective lever against GPU attacks:
+
+```bash
+brtc --algo argon2id --memory 64m  -o json "P@ssw0rd!" | jq .cost_usd
+brtc --algo argon2id --memory 256m -o json "P@ssw0rd!" | jq .cost_usd
+brtc --algo argon2id --memory 1g   -o json "P@ssw0rd!" | jq .cost_usd
 ```
 
 ## Development
