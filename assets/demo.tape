@@ -10,9 +10,10 @@ Set Margin 20
 Set MarginFill "#282A36"
 Set BorderRadius 10
 
+# The 'brtc' binary is expected to already exist in the current working
+# directory before VHS runs (built by the caller). The CI workflow does
+# 'go build -o brtc .' beforehand; locally, run the same command first.
 Hide
-Type "go build -o brtc"
-Enter
 Type "export PATH=$PWD:$PATH"
 Enter
 Type "clear"
