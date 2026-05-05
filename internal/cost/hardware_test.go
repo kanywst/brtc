@@ -6,7 +6,7 @@ import (
 )
 
 func TestCalculateHashRate_KnownProfile(t *testing.T) {
-	got := CalculateHashRate("rtx-4090", "md5", 10)
+	got := CalculateHashRate("rtx-4090", "md5", 10, 0)
 	want := Profiles["rtx-4090"].Hashrates["md5"]
 	if got != want {
 		t.Errorf("rtx-4090 md5 = %v, want %v", got, want)
@@ -14,7 +14,7 @@ func TestCalculateHashRate_KnownProfile(t *testing.T) {
 }
 
 func TestCalculateHashRate_UnknownProfileFallsBackTo4090(t *testing.T) {
-	got := CalculateHashRate("does-not-exist", "sha256", 10)
+	got := CalculateHashRate("does-not-exist", "sha256", 10, 0)
 	want := Profiles["rtx-4090"].Hashrates["sha256"]
 	if got != want {
 		t.Errorf("unknown hw fallback sha256 = %v, want %v", got, want)
@@ -24,19 +24,19 @@ func TestCalculateHashRate_UnknownProfileFallsBackTo4090(t *testing.T) {
 func TestCalculateHashRate_BcryptScalesByCost(t *testing.T) {
 	base := Profiles["rtx-4090"].Hashrates["bcrypt"] // baseline at cost=5
 
-	at10 := CalculateHashRate("rtx-4090", "bcrypt", 10)
+	at10 := CalculateHashRate("rtx-4090", "bcrypt", 10, 0)
 	wantAt10 := base / math.Pow(2, 5)
 	if at10 != wantAt10 {
 		t.Errorf("bcrypt cost=10 = %v, want %v", at10, wantAt10)
 	}
 
-	atBaseline := CalculateHashRate("rtx-4090", "bcrypt", 5)
+	atBaseline := CalculateHashRate("rtx-4090", "bcrypt", 5, 0)
 	if atBaseline != base {
 		t.Errorf("bcrypt cost=5 = %v, want baseline %v", atBaseline, base)
 	}
 
 	// Below the baseline, the factor is clamped to 1 (never faster than baseline)
-	atLow := CalculateHashRate("rtx-4090", "bcrypt", 1)
+	atLow := CalculateHashRate("rtx-4090", "bcrypt", 1, 0)
 	if atLow != base {
 		t.Errorf("bcrypt cost=1 = %v, want clamp to baseline %v", atLow, base)
 	}
@@ -44,10 +44,39 @@ func TestCalculateHashRate_BcryptScalesByCost(t *testing.T) {
 
 func TestCalculateHashRate_Argon2LinearScaling(t *testing.T) {
 	base := Profiles["rtx-4090"].Hashrates["argon2id"]
-	got := CalculateHashRate("rtx-4090", "argon2id", 4)
+	got := CalculateHashRate("rtx-4090", "argon2id", 4, 0)
 	want := base / 4
 	if got != want {
 		t.Errorf("argon2id workFactor=4 = %v, want %v", got, want)
+	}
+}
+
+func TestCalculateHashRate_Argon2MemoryScaling(t *testing.T) {
+	base := Profiles["rtx-4090"].Hashrates["argon2id"]
+
+	// Default (0) keeps the YAML baseline at 64MB.
+	if got := CalculateHashRate("rtx-4090", "argon2id", 1, 0); got != base {
+		t.Errorf("argon2id memory=0 = %v, want baseline %v", got, base)
+	}
+
+	// 64MB matches the baseline, so no extra memory penalty.
+	if got := CalculateHashRate("rtx-4090", "argon2id", 1, 64); got != base {
+		t.Errorf("argon2id memory=64MB = %v, want baseline %v", got, base)
+	}
+
+	// 128MB doubles memory pressure, halving attacker throughput.
+	if got := CalculateHashRate("rtx-4090", "argon2id", 1, 128); got != base/2 {
+		t.Errorf("argon2id memory=128MB = %v, want %v", got, base/2)
+	}
+
+	// Below baseline does not speed the attacker up beyond the baseline.
+	if got := CalculateHashRate("rtx-4090", "argon2id", 1, 32); got != base {
+		t.Errorf("argon2id memory=32MB = %v, want clamp to baseline %v", got, base)
+	}
+
+	// Memory and time factors compose multiplicatively.
+	if got := CalculateHashRate("rtx-4090", "argon2id", 4, 128); got != base/(4*2) {
+		t.Errorf("argon2id t=4 m=128MB = %v, want %v", got, base/(4*2))
 	}
 }
 
