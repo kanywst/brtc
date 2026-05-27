@@ -1,0 +1,77 @@
+version: 2
+
+project_name: brtc
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: brtc
+    binary: brtc
+    main: ./
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "{{ .ProjectName }}-{{ .Version }}-checksums.txt"
+
+release:
+  prerelease: auto
+
+homebrew_casks:
+  - name: brtc
+    binaries:
+      - brtc
+    homepage: "https://github.com/kanywst/brtc"
+    description: "Cost calculator for offline password brute-force attacks"
+    repository:
+      owner: kanywst
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    directory: Casks
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "chore(cask): {{ .ProjectName }} {{ .Tag }}"
+
+sboms:
+  - artifacts: archive
+
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - "sign-blob"
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+nfpms:
+  - maintainer: kanywst
+    description: Cost calculator for offline password brute-force attacks
+    homepage: https://github.com/kanywst/brtc
+    license: MIT
+    formats:
+      - deb
+      - rpm
