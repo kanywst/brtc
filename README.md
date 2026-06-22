@@ -106,6 +106,7 @@ echo "P@ssw0rd123!" | brtc
 | `--budget`          | `""`       | Set an attacker budget (e.g. `1000usd`) to see the max characters they can afford to crack                                                          |
 | `--output`, `-o`    | `tui`      | Output format (`tui`, `table`, `json`, `sarif`)                                                                                                     |
 | `--fail-under-time` | `""`       | CI/CD threshold to fail the run (e.g., `1y`, `30d`, `12h`)                                                                                          |
+| `--all-hw`          | `false`    | Compare the password across every hardware profile at once (ignores `--budget` and `--fail-under-time`)                                            |
 | `--version`         | -          | Print the binary version and exit                                                                                                                   |
 
 ### Example Outputs
@@ -131,6 +132,20 @@ brtc -o json "P@ssw0rd123!" | jq .
 ```
 
 When stdout is not a terminal (a pipe, a file, or a CI log) and no `-o` is given, `brtc` automatically uses `json` instead of the TUI, so piping never produces escape codes. Pass `-o tui` to force the interactive view.
+
+#### Compare Every Hardware Profile
+
+See, at a glance, how the same password fares against every attacker — from a Raspberry Pi to an 8x H100 cluster — sorted fastest-first:
+
+```bash
+brtc --all-hw --algo bcrypt --cost 12 "P@ssw0rd!"
+# HARDWARE         HASHRATE   TIME TO CRACK     COST
+# aws-p5.48xlarge  19531 H/s  465140.4 years    $162985188189.47
+# rtx-4090         781 H/s    11628509.4 years  $30559722785.53
+# ...              ...        ...               owned
+```
+
+Add `-o json` for a machine-readable array.
 
 #### CI Gatekeeper Example
 
