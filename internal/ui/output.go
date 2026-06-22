@@ -21,6 +21,9 @@ type OutputData struct {
 	CostUSD        float64  `json:"cost_usd"`
 	BudgetUSD      float64  `json:"budget_usd,omitempty"`
 	BudgetMaxChars int      `json:"budget_max_chars,omitempty"`
+	// BudgetUnlimited is true when the hardware has no rental cost, so no
+	// budget can bound the attacker. When set, BudgetMaxChars is meaningless.
+	BudgetUnlimited bool `json:"budget_unlimited,omitempty"`
 	// RecommendedChars is the minimum password length that would survive the
 	// --fail-under-time threshold on this hardware. 0 means not requested.
 	RecommendedChars int `json:"recommended_chars,omitempty"`

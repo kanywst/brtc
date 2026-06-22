@@ -117,7 +117,9 @@ func (m model) View() string {
 	if m.data.BudgetUSD > 0 {
 		rows = append(rows, "")
 		rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("Budget Target:"), valueStyle.Render(fmt.Sprintf("$%.2f USD", m.data.BudgetUSD))))
-		if m.data.BudgetMaxChars > 0 {
+		if m.data.BudgetUnlimited {
+			rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("Max Safe Chars:"), criticalStyle.Render("∞ (owned hardware — no rental cost)")))
+		} else if m.data.BudgetMaxChars > 0 {
 			rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("Max Safe Chars:"), safeStyle.Render(fmt.Sprintf("%d chars (Within budget)", m.data.BudgetMaxChars))))
 		} else {
 			rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("Max Safe Chars:"), criticalStyle.Render("0 (Cannot resist this attacker)")))

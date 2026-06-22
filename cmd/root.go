@@ -116,8 +116,16 @@ var rootCmd = &cobra.Command{
 		}
 
 		var budgetMaxChars int
+		var budgetUnlimited bool
 		if budgetVal > 0 && externalGuesses == "" {
 			budgetMaxChars = cost.MaxLengthForBudget(budgetVal, hwProfile, algo, workFactor, memoryMB, entropy.CharSpace)
+			// Owned hardware has no rental cost, so no budget bounds the
+			// attacker. Surface that as a flag rather than leaking the 999
+			// sentinel into the output as a literal length.
+			if budgetMaxChars == cost.UnlimitedBudgetChars {
+				budgetUnlimited = true
+				budgetMaxChars = 0
+			}
 		}
 
 		// 6. Gatekeeper threshold (optional). Parsed up front so we can both
@@ -151,6 +159,7 @@ var rootCmd = &cobra.Command{
 			CostUSD:          costUSD,
 			BudgetUSD:        budgetVal,
 			BudgetMaxChars:   budgetMaxChars,
+			BudgetUnlimited:  budgetUnlimited,
 			RecommendedChars: recommendedChars,
 		}
 
