@@ -146,15 +146,26 @@ var rootCmd = &cobra.Command{
 		}
 		hwProfile = resolvedHW
 
-		// --all-hw is a standalone comparison view: run the password against
-		// every profile and print the matrix. Budget and the gatekeeper apply
-		// to a single profile, so they are not combined with this mode.
+		// --all-hw is a standalone comparison view across every profile. The
+		// single-profile concepts (budget, the CI gatekeeper, the SARIF report)
+		// are rejected rather than silently ignored — silently dropping
+		// --fail-under-time in particular would bypass a security gate.
 		if allHW {
-			rows := buildMatrix(entropy.Combinations, memoryMB)
-			if strings.ToLower(outputFormat) == "json" {
-				return ui.PrintMatrixJSON(rows)
+			switch {
+			case budget != "":
+				return fmt.Errorf("--budget cannot be combined with --all-hw")
+			case failUnderTime != "":
+				return fmt.Errorf("--fail-under-time cannot be combined with --all-hw")
 			}
-			return ui.PrintMatrixTable(rows)
+			rows := buildMatrix(entropy.Combinations, memoryMB)
+			switch strings.ToLower(outputFormat) {
+			case "json":
+				return ui.PrintMatrixJSON(rows)
+			case "sarif":
+				return fmt.Errorf("sarif output is not supported with --all-hw")
+			default:
+				return ui.PrintMatrixTable(rows)
+			}
 		}
 
 		// 2. Hardware HashRate
@@ -261,5 +272,5 @@ func init() {
 	rootCmd.Flags().StringVar(&budget, "budget", "", "Attacker's budget in USD (e.g., 1000usd)")
 	rootCmd.Flags().StringVarP(&outputFormat, "output", "o", "tui", "Output format (tui, table, json, sarif)")
 	rootCmd.Flags().StringVar(&failUnderTime, "fail-under-time", "", "Gatekeeper threshold for CI/CD (e.g., 1y, 30d)")
-	rootCmd.Flags().BoolVar(&allHW, "all-hw", false, "Compare the password across every hardware profile (ignores --budget and --fail-under-time)")
+	rootCmd.Flags().BoolVar(&allHW, "all-hw", false, "Compare the password across every hardware profile (not combinable with --budget, --fail-under-time, or -o sarif)")
 }

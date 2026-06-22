@@ -22,12 +22,13 @@ type MatrixRow struct {
 
 // PrintMatrixJSON writes the comparison rows as a JSON array.
 func PrintMatrixJSON(rows []MatrixRow) error {
-	b, err := json.MarshalIndent(rows, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(b))
-	return nil
+	return renderMatrixJSON(os.Stdout, rows)
+}
+
+func renderMatrixJSON(out io.Writer, rows []MatrixRow) error {
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	return enc.Encode(rows)
 }
 
 // PrintMatrixTable writes the comparison rows as a plain aligned table.

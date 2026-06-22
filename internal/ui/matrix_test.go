@@ -12,6 +12,17 @@ func sampleMatrix() []MatrixRow {
 	}
 }
 
+func TestRenderMatrixJSON(t *testing.T) {
+	var buf strings.Builder
+	if err := renderMatrixJSON(&buf, sampleMatrix()); err != nil {
+		t.Fatalf("renderMatrixJSON failed: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, `"profile": "aws-p5.48xlarge"`) || !strings.HasPrefix(strings.TrimSpace(out), "[") {
+		t.Errorf("expected a JSON array of rows, got:\n%s", out)
+	}
+}
+
 func TestRenderMatrixTable(t *testing.T) {
 	var buf strings.Builder
 	if err := renderMatrixTable(&buf, sampleMatrix()); err != nil {
