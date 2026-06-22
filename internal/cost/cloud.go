@@ -78,8 +78,18 @@ func MinLengthForTime(thresholdSeconds float64, hw, algo string, workFactor, mem
 
 	needed := 2.0 * thresholdSeconds * hashRate
 	l := math.Ceil(math.Log(needed) / math.Log(float64(charSpace)))
+	// An extreme threshold can overflow needed to +Inf, making l Inf/NaN;
+	// converting that to int yields a garbage (negative) value that would
+	// wrongly read as a 1-char recommendation. Cap it at the sentinel.
+	if math.IsInf(l, 1) || math.IsNaN(l) || l > maxRecommendedChars {
+		return maxRecommendedChars
+	}
 	if l < 1 {
 		return 1
 	}
 	return int(l)
 }
+
+// maxRecommendedChars caps MinLengthForTime when the requirement is so extreme
+// that the float math overflows; it reads as "no practical length suffices".
+const maxRecommendedChars = 999

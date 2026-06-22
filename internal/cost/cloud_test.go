@@ -68,6 +68,12 @@ func TestMinLengthForTime(t *testing.T) {
 		t.Errorf("trivial charset should return 0, got %d", got)
 	}
 
+	// An extreme threshold overflows float64; it must clamp to the sentinel,
+	// not wrap around to a 1-char recommendation.
+	if got := MinLengthForTime(1e300, "rtx-4090", "md5", 10, 0, 94); got != maxRecommendedChars {
+		t.Errorf("extreme threshold should clamp to %d, got %d", maxRecommendedChars, got)
+	}
+
 	// The recommended length must actually survive the threshold, and one
 	// character shorter must not — i.e. it is the *minimum* safe length.
 	const oneYear = 31536000.0
