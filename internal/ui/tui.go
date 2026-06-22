@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -36,19 +35,6 @@ type model struct {
 
 func initialModel(data OutputData) model {
 	return model{data: data}
-}
-
-// Init renders once and quits. All figures are computed before the program
-// starts, so there is nothing to wait for — the result is drawn immediately.
-func (m model) Init() tea.Cmd {
-	return tea.Quit
-}
-
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if _, ok := msg.(tea.KeyMsg); ok {
-		return m, tea.Quit
-	}
-	return m, nil
 }
 
 func (m model) View() string {
@@ -110,11 +96,11 @@ func (m model) View() string {
 	return boxStyle.Render(content) + "\n\n"
 }
 
-// RunTUI starts the Bubble Tea program.
+// RunTUI prints the styled result box to stdout. The view is fully determined
+// by data computed before this call, so there is nothing interactive to do —
+// printing the Lipgloss render directly avoids spinning up a full Bubble Tea
+// program (and the terminal it needs, which is absent when piped).
 func RunTUI(data OutputData) error {
-	p := tea.NewProgram(initialModel(data))
-	if _, err := p.Run(); err != nil {
-		return fmt.Errorf("tui: %w", err)
-	}
+	fmt.Print(initialModel(data).View())
 	return nil
 }
