@@ -20,9 +20,12 @@ type OutputData struct {
 	TimeToCrackSec float64  `json:"time_to_crack_seconds"`
 	CostUSD        float64  `json:"cost_usd"`
 	BudgetUSD      float64  `json:"budget_usd,omitempty"`
-	BudgetMaxChars int      `json:"budget_max_chars,omitempty"`
+	// BudgetMaxChars is a pointer so a calculated 0 ("cannot resist even a
+	// 1-char password") is distinct from "not calculated" (nil, e.g. with
+	// --guesses or no --budget), which omitempty drops.
+	BudgetMaxChars *int `json:"budget_max_chars,omitempty"`
 	// BudgetUnlimited is true when the hardware has no rental cost, so no
-	// budget can bound the attacker. When set, BudgetMaxChars is meaningless.
+	// budget can bound the attacker. When set, BudgetMaxChars is nil.
 	BudgetUnlimited bool `json:"budget_unlimited,omitempty"`
 	// RecommendedChars is the minimum password length that would survive the
 	// --fail-under-time threshold on this hardware. 0 means not requested.
