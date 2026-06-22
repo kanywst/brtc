@@ -68,6 +68,15 @@ var rootCmd = &cobra.Command{
 			entropy = calc.Analyze(password)
 		}
 
+		// Resolve --hw to a known profile up front. An unknown value silently
+		// falls back to rtx-4090, so warn and report the resolved name rather
+		// than echoing the bogus input back in the results.
+		resolvedHW, known := cost.ResolveProfileName(hwProfile)
+		if !known {
+			fmt.Fprintf(os.Stderr, "warning: unknown hardware profile %q, falling back to %s\n", hwProfile, resolvedHW)
+		}
+		hwProfile = resolvedHW
+
 		// 2. Hardware HashRate
 		hr := cost.CalculateHashRate(hwProfile, algo, workFactor, memoryMB)
 
