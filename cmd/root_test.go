@@ -14,7 +14,11 @@ func TestRunE_RuntimeErrorDoesNotPrintUsage(t *testing.T) {
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&errOut)
 	rootCmd.SetArgs([]string{"abc", "--budget", "not-a-number"})
-	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+	t.Cleanup(func() {
+		rootCmd.SetArgs(nil)
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+	})
 
 	err := rootCmd.Execute()
 	if err == nil {
