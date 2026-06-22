@@ -25,6 +25,43 @@ type OutputData struct {
 	RecommendedChars int `json:"recommended_chars,omitempty"`
 }
 
+// MarshalJSON emits combinations as a JSON string rather than a number.
+// R^L can be hundreds of digits long, and even a 9-char password exceeds
+// 2^53, so a bare JSON number silently loses precision in JavaScript and
+// other IEEE-754 parsers. Serialising it as a string keeps it exact.
+func (d OutputData) MarshalJSON() ([]byte, error) {
+	type alias OutputData // avoids recursing into this method
+	combinations := "0"
+	if d.Combinations != nil {
+		combinations = d.Combinations.String()
+	}
+	return json.Marshal(struct {
+		alias
+		Combinations string `json:"combinations"`
+	}{alias: alias(d), Combinations: combinations})
+}
+
+// UnmarshalJSON is the inverse of MarshalJSON: it reads combinations from a
+// JSON string back into the big.Int field so the format round-trips.
+func (d *OutputData) UnmarshalJSON(b []byte) error {
+	type alias OutputData // avoids recursing into this method
+	aux := struct {
+		*alias
+		Combinations string `json:"combinations"`
+	}{alias: (*alias)(d)}
+	if err := json.Unmarshal(b, &aux); err != nil {
+		return err
+	}
+	if aux.Combinations != "" {
+		n, ok := new(big.Int).SetString(aux.Combinations, 10)
+		if !ok {
+			return fmt.Errorf("combinations: invalid integer %q", aux.Combinations)
+		}
+		d.Combinations = n
+	}
+	return nil
+}
+
 func PrintJSON(data OutputData) error {
 	b, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
