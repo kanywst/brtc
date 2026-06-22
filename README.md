@@ -129,6 +129,8 @@ brtc -o table "P@ssw0rd123!"
 brtc -o json "P@ssw0rd123!" | jq .
 ```
 
+When stdout is not a terminal (a pipe, a file, or a CI log) and no `-o` is given, `brtc` automatically uses `json` instead of the TUI, so piping never produces escape codes. Pass `-o tui` to force the interactive view.
+
 #### CI Gatekeeper Example
 
 ```bash

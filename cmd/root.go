@@ -9,8 +9,20 @@ import (
 	"github.com/kanywst/brtc/internal/calc"
 	"github.com/kanywst/brtc/internal/cost"
 	"github.com/kanywst/brtc/internal/ui"
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
+
+// resolveOutputFormat downgrades the interactive TUI to JSON when stdout is
+// not a terminal (a pipe, file, or CI log) and the user did not explicitly
+// ask for a format. This keeps `brtc pw | jq` and CI runs from emitting the
+// TUI's escape codes while still honouring an explicit `-o tui`.
+func resolveOutputFormat(requested string, explicit, stdoutIsTTY bool) string {
+	if !explicit && !stdoutIsTTY && strings.ToLower(requested) == "tui" {
+		return "json"
+	}
+	return requested
+}
 
 var (
 	hwProfile       string
@@ -125,8 +137,9 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Present output
+		format := resolveOutputFormat(outputFormat, cmd.Flags().Changed("output"), isatty.IsTerminal(os.Stdout.Fd()))
 		var errOut error
-		switch strings.ToLower(outputFormat) {
+		switch strings.ToLower(format) {
 		case "json":
 			errOut = ui.PrintJSON(outData)
 		case "table":
