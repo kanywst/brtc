@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/tabwriter"
 )
 
@@ -36,13 +37,17 @@ func PrintMatrixTable(rows []MatrixRow) error {
 
 func renderMatrixTable(out io.Writer, rows []MatrixRow) error {
 	w := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(w, "HARDWARE\tHASHRATE\tTIME TO CRACK\tCOST")
+
+	lines := []string{"HARDWARE\tHASHRATE\tTIME TO CRACK\tCOST"}
 	for _, r := range rows {
 		cost := fmt.Sprintf("$%.2f", r.CostUSD)
 		if r.CostPerHourUSD <= 0 {
 			cost = "owned" // no rental cost
 		}
-		fmt.Fprintf(w, "%s\t%.0f H/s\t%s\t%s\n", r.Profile, r.HashRate, FormatDuration(r.TimeToCrackSec), cost)
+		lines = append(lines, fmt.Sprintf("%s\t%.0f H/s\t%s\t%s", r.Profile, r.HashRate, FormatDuration(r.TimeToCrackSec), cost))
+	}
+	if _, err := io.WriteString(w, strings.Join(lines, "\n")+"\n"); err != nil {
+		return err
 	}
 	return w.Flush()
 }
