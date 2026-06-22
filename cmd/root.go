@@ -112,6 +112,8 @@ var rootCmd = &cobra.Command{
 		switch strings.ToLower(outputFormat) {
 		case "json":
 			errOut = ui.PrintJSON(outData)
+		case "table":
+			errOut = ui.PrintTable(outData)
 		case "sarif":
 			errOut = ui.PrintSARIF(outData)
 		case "tui":
@@ -150,6 +152,6 @@ func init() {
 	rootCmd.Flags().StringVar(&memoryStr, "memory", "", "Argon2id memory parameter (e.g. 64m, 128m, 1g). Defaults to the profile baseline (64MB)")
 	rootCmd.Flags().StringVar(&externalGuesses, "guesses", "", "Override entropy with an external guess count from zxcvbn or similar (e.g. 1e10, 12345)")
 	rootCmd.Flags().StringVar(&budget, "budget", "", "Attacker's budget in USD (e.g., 1000usd)")
-	rootCmd.Flags().StringVarP(&outputFormat, "output", "o", "tui", "Output format (tui, json, sarif)")
+	rootCmd.Flags().StringVarP(&outputFormat, "output", "o", "tui", "Output format (tui, table, json, sarif)")
 	rootCmd.Flags().StringVar(&failUnderTime, "fail-under-time", "", "Gatekeeper threshold for CI/CD (e.g., 1y, 30d)")
 }
