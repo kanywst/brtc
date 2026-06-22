@@ -43,6 +43,22 @@ func TestOutputData_JSONRoundtrip(t *testing.T) {
 	}
 }
 
+func TestOutputData_CombinationsMarshalsAsString(t *testing.T) {
+	// 94^9 exceeds 2^53, so it must be a JSON string to survive parsers that
+	// represent numbers as IEEE-754 doubles.
+	data := sampleData()
+	data.Combinations, _ = new(big.Int).SetString("572994802228616704", 10)
+
+	b, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if !strings.Contains(string(b), `"combinations": "572994802228616704"`) &&
+		!strings.Contains(string(b), `"combinations":"572994802228616704"`) {
+		t.Errorf("combinations should be a quoted string, got:\n%s", b)
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		secs    float64
