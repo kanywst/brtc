@@ -56,3 +56,30 @@ func MaxLengthForBudget(budgetUSD float64, hw, algo string, workFactor, memoryMB
 	// Return the floor of L because adding one more character would exceed the budget.
 	return int(math.Floor(l))
 }
+
+// MinLengthForTime returns the smallest password length over the given
+// charSpace whose average crack time meets or exceeds thresholdSeconds on the
+// specified hardware and algorithm. It inverts the time formula:
+//
+//	T_avg = (R^L / 2) / H  >=  threshold   =>   R^L >= 2 * threshold * H
+//	L >= log_R(2 * threshold * H)
+//
+// It is the defender's actionable counterpart to a --fail-under-time gate:
+// "use at least N characters to survive this attacker for this long".
+func MinLengthForTime(thresholdSeconds float64, hw, algo string, workFactor, memoryMB, charSpace int) int {
+	if thresholdSeconds <= 0 || charSpace <= 1 {
+		return 0
+	}
+
+	hashRate := CalculateHashRate(hw, algo, workFactor, memoryMB)
+	if hashRate <= 0 {
+		return 1 // An attacker that cannot hash is held off by any password.
+	}
+
+	needed := 2.0 * thresholdSeconds * hashRate
+	l := math.Ceil(math.Log(needed) / math.Log(float64(charSpace)))
+	if l < 1 {
+		return 1
+	}
+	return int(l)
+}

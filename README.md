@@ -137,6 +137,8 @@ brtc --fail-under-time 1m "short"
 # Exit code 1
 ```
 
+When `--fail-under-time` is set, `brtc` also reports the **minimum password length** needed to survive that threshold on the chosen hardware (shown as `Recommended Len` in the TUI and `recommended_chars` in JSON) — turning the gate into actionable advice.
+
 #### Pairing with zxcvbn (recommended)
 
 `brtc`'s built-in entropy estimator is naive — it counts character classes and treats every position as independent. `P@ssw0rd!` looks "strong" to it but is trivially guessable to a real attacker. For accurate strength evaluation, run [zxcvbn](https://github.com/dropbox/zxcvbn) (or [zxcvbn-ts](https://github.com/zxcvbn-ts/zxcvbn)) first, then feed its `guesses` field into `brtc`:

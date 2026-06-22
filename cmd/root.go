@@ -90,21 +90,38 @@ var rootCmd = &cobra.Command{
 			budgetMaxChars = cost.MaxLengthForBudget(budgetVal, hwProfile, algo, workFactor, memoryMB, entropy.CharSpace)
 		}
 
+		// 6. Gatekeeper threshold (optional). Parsed up front so we can both
+		// recommend a safe length and enforce the gate after output. Like the
+		// budget logic, the recommendation needs a charset and is skipped for
+		// external --guesses estimates.
+		var reqSecs float64
+		if failUnderTime != "" {
+			reqSecs, err = calc.ParseDuration(failUnderTime)
+			if err != nil {
+				return fmt.Errorf("invalid fail-under-time format: %v", err)
+			}
+		}
+		var recommendedChars int
+		if reqSecs > 0 && externalGuesses == "" {
+			recommendedChars = cost.MinLengthForTime(reqSecs, hwProfile, algo, workFactor, memoryMB, entropy.CharSpace)
+		}
+
 		// Compile output data
 		outData := ui.OutputData{
-			PasswordLength: entropy.Length,
-			CharSpace:      entropy.CharSpace,
-			Entropy:        entropy.Entropy,
-			Combinations:   entropy.Combinations,
-			Algorithm:      algo,
-			WorkFactor:     workFactor,
-			MemoryMB:       memoryMB,
-			Hardware:       hwProfile,
-			HashRate:       hr,
-			TimeToCrackSec: ttc,
-			CostUSD:        costUSD,
-			BudgetUSD:      budgetVal,
-			BudgetMaxChars: budgetMaxChars,
+			PasswordLength:   entropy.Length,
+			CharSpace:        entropy.CharSpace,
+			Entropy:          entropy.Entropy,
+			Combinations:     entropy.Combinations,
+			Algorithm:        algo,
+			WorkFactor:       workFactor,
+			MemoryMB:         memoryMB,
+			Hardware:         hwProfile,
+			HashRate:         hr,
+			TimeToCrackSec:   ttc,
+			CostUSD:          costUSD,
+			BudgetUSD:        budgetVal,
+			BudgetMaxChars:   budgetMaxChars,
+			RecommendedChars: recommendedChars,
 		}
 
 		// Present output
@@ -125,16 +142,11 @@ var rootCmd = &cobra.Command{
 			return errOut
 		}
 
-		// Gatekeeper (fail-under-time) logic
-		if failUnderTime != "" {
-			reqSecs, err := calc.ParseDuration(failUnderTime)
-			if err != nil {
-				return fmt.Errorf("invalid fail-under-time format: %v", err)
-			}
-			if ttc < reqSecs {
-				return fmt.Errorf("gatekeeper failed: estimated crack time (%s) is less than required (%s)",
-					ui.FormatDuration(ttc), ui.FormatDuration(reqSecs))
-			}
+		// Gatekeeper (fail-under-time) logic. reqSecs was parsed and validated
+		// above; a zero value means the flag was not set.
+		if reqSecs > 0 && ttc < reqSecs {
+			return fmt.Errorf("gatekeeper failed: estimated crack time (%s) is less than required (%s)",
+				ui.FormatDuration(ttc), ui.FormatDuration(reqSecs))
 		}
 
 		return nil
