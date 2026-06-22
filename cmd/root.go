@@ -28,6 +28,13 @@ var rootCmd = &cobra.Command{
 	Short: "brtc visualizes password cracking cost",
 	Long:  `brtc (Brute-force Cost) takes a password and calculates its entropy, the time to crack using specific hardware, and the estimated cloud cost.`,
 	Args:  cobra.MaximumNArgs(1),
+	// A failure from RunE (e.g. a bad --budget value) is a runtime error,
+	// not a misuse of the command line, so dumping the full flag usage
+	// only adds noise. SilenceErrors hands the single error string to
+	// main(), which prints it once to stderr; without it cobra prints the
+	// error too and the user sees it twice.
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		password := ""
 		if len(args) > 0 {
