@@ -186,16 +186,17 @@ var rootCmd = &cobra.Command{
 			return fmt.Errorf("invalid budget format: %v", err)
 		}
 
-		var budgetMaxChars int
+		var budgetMaxChars *int
 		var budgetUnlimited bool
 		if budgetVal > 0 && externalGuesses == "" {
-			budgetMaxChars = cost.MaxLengthForBudget(budgetVal, hwProfile, algo, workFactor, memoryMB, entropy.CharSpace)
+			maxChars := cost.MaxLengthForBudget(budgetVal, hwProfile, algo, workFactor, memoryMB, entropy.CharSpace)
 			// Owned hardware has no rental cost, so no budget bounds the
 			// attacker. Surface that as a flag rather than leaking the 999
 			// sentinel into the output as a literal length.
-			if budgetMaxChars == cost.UnlimitedBudgetChars {
+			if maxChars == cost.UnlimitedBudgetChars {
 				budgetUnlimited = true
-				budgetMaxChars = 0
+			} else {
+				budgetMaxChars = &maxChars
 			}
 		}
 
