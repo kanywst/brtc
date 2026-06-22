@@ -73,7 +73,7 @@ var rootCmd = &cobra.Command{
 		// than echoing the bogus input back in the results.
 		resolvedHW, known := cost.ResolveProfileName(hwProfile)
 		if !known {
-			fmt.Fprintf(os.Stderr, "warning: unknown hardware profile %q, falling back to %s\n", hwProfile, resolvedHW)
+			cmd.PrintErrf("warning: unknown hardware profile %q, falling back to %s\n", hwProfile, resolvedHW)
 		}
 		hwProfile = resolvedHW
 
