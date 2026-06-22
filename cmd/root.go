@@ -13,6 +13,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// version is the binary version. It defaults to "dev" for `go install` and
+// `go run` builds and is overridden at release time via -ldflags
+// (-X github.com/kanywst/brtc/cmd.version=...), see .goreleaser.yml.
+var version = "dev"
+
 // resolveOutputFormat downgrades the interactive TUI to JSON when stdout is
 // not a terminal (a pipe, file, or CI log) and the user did not explicitly
 // ask for a format. This keeps `brtc pw | jq` and CI runs from emitting the
@@ -36,10 +41,11 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "brtc [password]",
-	Short: "brtc visualizes password cracking cost",
-	Long:  `brtc (Brute-force Cost) takes a password and calculates its entropy, the time to crack using specific hardware, and the estimated cloud cost.`,
-	Args:  cobra.MaximumNArgs(1),
+	Use:     "brtc [password]",
+	Short:   "brtc visualizes password cracking cost",
+	Long:    `brtc (Brute-force Cost) takes a password and calculates its entropy, the time to crack using specific hardware, and the estimated cloud cost.`,
+	Args:    cobra.MaximumNArgs(1),
+	Version: version,
 	// SilenceErrors hands the single error to main(), which prints it once to
 	// stderr; without it cobra prints the error too and the user sees it twice.
 	SilenceErrors: true,
