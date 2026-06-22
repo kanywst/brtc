@@ -3,8 +3,10 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"runtime/debug"
+	"sort"
 	"strings"
 
 	"github.com/kanywst/brtc/internal/calc"
@@ -51,7 +53,34 @@ var (
 	budget          string
 	outputFormat    string
 	failUnderTime   string
+	allHW           bool
 )
+
+// buildMatrix runs the given combination count against every known hardware
+// profile and returns the rows sorted fastest-attacker-first (then by name
+// for a stable order).
+func buildMatrix(combinations *big.Int, memoryMB int) []ui.MatrixRow {
+	rows := make([]ui.MatrixRow, 0, len(cost.Profiles))
+	for key, p := range cost.Profiles {
+		hr := cost.CalculateHashRate(key, algo, workFactor, memoryMB)
+		ttc := calc.TimeToCrack(combinations, hr)
+		rows = append(rows, ui.MatrixRow{
+			Profile:        key,
+			Name:           p.Name,
+			HashRate:       hr,
+			TimeToCrackSec: ttc,
+			CostUSD:        cost.TotalCost(key, ttc),
+			CostPerHourUSD: p.CostPerHourUSD,
+		})
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].HashRate != rows[j].HashRate {
+			return rows[i].HashRate > rows[j].HashRate
+		}
+		return rows[i].Profile < rows[j].Profile
+	})
+	return rows
+}
 
 var rootCmd = &cobra.Command{
 	Use:     "brtc [password]",
@@ -116,6 +145,17 @@ var rootCmd = &cobra.Command{
 			cmd.PrintErrf("warning: unknown hardware profile %q, falling back to %s\n", hwProfile, resolvedHW)
 		}
 		hwProfile = resolvedHW
+
+		// --all-hw is a standalone comparison view: run the password against
+		// every profile and print the matrix. Budget and the gatekeeper apply
+		// to a single profile, so they are not combined with this mode.
+		if allHW {
+			rows := buildMatrix(entropy.Combinations, memoryMB)
+			if strings.ToLower(outputFormat) == "json" {
+				return ui.PrintMatrixJSON(rows)
+			}
+			return ui.PrintMatrixTable(rows)
+		}
 
 		// 2. Hardware HashRate
 		hr := cost.CalculateHashRate(hwProfile, algo, workFactor, memoryMB)
@@ -221,4 +261,5 @@ func init() {
 	rootCmd.Flags().StringVar(&budget, "budget", "", "Attacker's budget in USD (e.g., 1000usd)")
 	rootCmd.Flags().StringVarP(&outputFormat, "output", "o", "tui", "Output format (tui, table, json, sarif)")
 	rootCmd.Flags().StringVar(&failUnderTime, "fail-under-time", "", "Gatekeeper threshold for CI/CD (e.g., 1y, 30d)")
+	rootCmd.Flags().BoolVar(&allHW, "all-hw", false, "Compare the password across every hardware profile (ignores --budget and --fail-under-time)")
 }
