@@ -15,16 +15,17 @@ const maxCombinationDigits = 21
 
 // formatCombinations renders a combination count for the TUI: exact digits
 // while it stays short, scientific notation once it would overflow the box.
+// Scientific form goes through big.Float's %.3e so it rounds (rather than
+// truncates) and handles negative inputs correctly.
 func formatCombinations(n *big.Int) string {
 	if n == nil {
 		return "0"
 	}
-	s := n.String()
-	if len(s) <= maxCombinationDigits {
-		return s
+	if len(new(big.Int).Abs(n).String()) <= maxCombinationDigits {
+		return n.String()
 	}
-	// len(s) > 21 guarantees at least 4 digits for the mantissa.
-	return fmt.Sprintf("≈ %s.%se%d", s[:1], s[1:4], len(s)-1)
+	f := new(big.Float).SetInt(n)
+	return "≈ " + strings.Replace(fmt.Sprintf("%.3e", f), "e+", "e", 1)
 }
 
 // Style definitions
