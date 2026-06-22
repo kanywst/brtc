@@ -106,6 +106,7 @@ echo "P@ssw0rd123!" | brtc
 | `--budget`          | `""`       | Set an attacker budget (e.g. `1000usd`) to see the max characters they can afford to crack                                                          |
 | `--output`, `-o`    | `tui`      | Output format (`tui`, `table`, `json`, `sarif`)                                                                                                     |
 | `--fail-under-time` | `""`       | CI/CD threshold to fail the run (e.g., `1y`, `30d`, `12h`)                                                                                          |
+| `--version`         | -          | Print the binary version and exit                                                                                                                   |
 
 ### Example Outputs
 
