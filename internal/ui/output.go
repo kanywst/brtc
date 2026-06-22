@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
+	"strings"
 )
 
 type OutputData struct {
@@ -28,37 +29,44 @@ type OutputData struct {
 // MarshalJSON emits combinations as a JSON string rather than a number.
 // R^L can be hundreds of digits long, and even a 9-char password exceeds
 // 2^53, so a bare JSON number silently loses precision in JavaScript and
-// other IEEE-754 parsers. Serialising it as a string keeps it exact.
+// other IEEE-754 parsers. Serialising it as a string keeps it exact. A nil
+// value is preserved as JSON null rather than coerced to "0".
 func (d OutputData) MarshalJSON() ([]byte, error) {
 	type alias OutputData // avoids recursing into this method
-	combinations := "0"
+	var combinations *string
 	if d.Combinations != nil {
-		combinations = d.Combinations.String()
+		s := d.Combinations.String()
+		combinations = &s
 	}
 	return json.Marshal(struct {
 		alias
-		Combinations string `json:"combinations"`
+		Combinations *string `json:"combinations"`
 	}{alias: alias(d), Combinations: combinations})
 }
 
-// UnmarshalJSON is the inverse of MarshalJSON: it reads combinations from a
-// JSON string back into the big.Int field so the format round-trips.
+// UnmarshalJSON is the inverse of MarshalJSON: it reads combinations back into
+// the big.Int field so the format round-trips. It accepts both the current
+// string form and the legacy bare-number form, plus null.
 func (d *OutputData) UnmarshalJSON(b []byte) error {
 	type alias OutputData // avoids recursing into this method
 	aux := struct {
 		*alias
-		Combinations string `json:"combinations"`
+		Combinations json.RawMessage `json:"combinations"`
 	}{alias: (*alias)(d)}
 	if err := json.Unmarshal(b, &aux); err != nil {
 		return err
 	}
-	if aux.Combinations != "" {
-		n, ok := new(big.Int).SetString(aux.Combinations, 10)
-		if !ok {
-			return fmt.Errorf("combinations: invalid integer %q", aux.Combinations)
-		}
-		d.Combinations = n
+	if len(aux.Combinations) == 0 || string(aux.Combinations) == "null" {
+		return nil
 	}
+	// Strip the surrounding quotes for the string form; the legacy numeric
+	// form is already a bare integer literal.
+	s := strings.Trim(string(aux.Combinations), `"`)
+	n, ok := new(big.Int).SetString(s, 10)
+	if !ok {
+		return fmt.Errorf("combinations: invalid integer %q", s)
+	}
+	d.Combinations = n
 	return nil
 }
 
