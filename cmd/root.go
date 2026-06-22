@@ -154,8 +154,11 @@ var rootCmd = &cobra.Command{
 			RecommendedChars: recommendedChars,
 		}
 
-		// Present output
-		format := resolveOutputFormat(outputFormat, cmd.Flags().Changed("output"), isatty.IsTerminal(os.Stdout.Fd()))
+		// Present output. IsCygwinTerminal covers MSYS/Git Bash on Windows,
+		// where IsTerminal alone reports false for a real interactive terminal.
+		fd := os.Stdout.Fd()
+		stdoutIsTTY := isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
+		format := resolveOutputFormat(outputFormat, cmd.Flags().Changed("output"), stdoutIsTTY)
 		var errOut error
 		switch strings.ToLower(format) {
 		case "json":
