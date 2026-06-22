@@ -3,9 +3,7 @@ package ui
 import (
 	"fmt"
 	"strings"
-	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -32,64 +30,28 @@ var (
 			MarginLeft(2)
 )
 
-type errMsg error
-
 type model struct {
-	spinner spinner.Model
-	data    OutputData
-	loaded  bool
-	err     error
+	data OutputData
 }
 
 func initialModel(data OutputData) model {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-
-	return model{
-		spinner: s,
-		data:    data,
-		loaded:  false,
-	}
+	return model{data: data}
 }
 
+// Init renders once and quits. All figures are computed before the program
+// starts, so there is nothing to wait for — the result is drawn immediately.
 func (m model) Init() tea.Cmd {
-	return tea.Batch(m.spinner.Tick, func() tea.Msg {
-		time.Sleep(500 * time.Millisecond) // Artificial delay for effect
-		return struct{}{}
-	})
+	return tea.Quit
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if msg.String() == "q" || msg.String() == "ctrl+c" {
-			return m, tea.Quit
-		}
-	case struct{}:
-		m.loaded = true
-		return m, tea.Quit
-	case spinner.TickMsg:
-		if !m.loaded {
-			var cmd tea.Cmd
-			m.spinner, cmd = m.spinner.Update(msg)
-			return m, cmd
-		}
-	case errMsg:
-		m.err = msg
+	if _, ok := msg.(tea.KeyMsg); ok {
 		return m, tea.Quit
 	}
 	return m, nil
 }
 
 func (m model) View() string {
-	if m.err != nil {
-		return fmt.Sprintf("\nError: %v\n", m.err)
-	}
-	if !m.loaded {
-		return fmt.Sprintf("\n %s Analyzing password strength...\n\n", m.spinner.View())
-	}
-
 	// Format values
 	entropyStr := fmt.Sprintf("%.2f bits", m.data.Entropy)
 	var entropyColored string
