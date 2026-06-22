@@ -25,7 +25,7 @@ Instead of just telling you a password is "Weak" or "Strong", `brtc` pits your s
 - **Financial Cost Visualization:** Uses current spot prices for AWS or GPU providers to calculate the total USD cost to crack your hash.
 - **Hardware Simulation:** Select between various physical and cloud profiles (`rtx-4090`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`) to see how hardware scales the threat.
 - **Hash Algorithms:** Simulates the braking power of `md5`, `sha256`, `bcrypt`, and `argon2id` with adjustable work factors.
-- **Terminal UI:** Beautiful, color-coded output built on [Bubble Tea](https://github.com/charmbracelet/bubbletea) and Lipgloss.
+- **Terminal UI:** Beautiful, color-coded output built on [Lipgloss](https://github.com/charmbracelet/lipgloss).
 - **CI/CD Gatekeeper:** Use the `--fail-under-time` flag in your pipelines to break the build if a secret can be cracked faster than your threshold (e.g., `1y`, `30d`). Also supports standard `json` and `sarif` outputs for tooling.
 
 ## Why This Matters (Online vs. Offline Attacks)
