@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
@@ -9,6 +10,25 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+// maxCombinationDigits is the longest combination count printed verbatim in
+// the TUI. Beyond it (a long password yields a hundreds-of-digits R^L) the
+// number is shown in scientific notation so it cannot blow out the box width.
+const maxCombinationDigits = 21
+
+// formatCombinations renders a combination count for the TUI: exact digits
+// while it stays short, scientific notation once it would overflow the box.
+func formatCombinations(n *big.Int) string {
+	if n == nil {
+		return "0"
+	}
+	s := n.String()
+	if len(s) <= maxCombinationDigits {
+		return s
+	}
+	// len(s) > 21 guarantees at least 4 digits for the mantissa.
+	return fmt.Sprintf("≈ %s.%se%d", s[:1], s[1:4], len(s)-1)
+}
 
 // Style definitions
 var (
@@ -126,7 +146,7 @@ func (m model) View() string {
 		fmt.Sprintf("%s%s", propertyStyle.Render("Password Length:"), valueStyle.Render(fmt.Sprintf("%d chars", m.data.PasswordLength))),
 		fmt.Sprintf("%s%s", propertyStyle.Render("Character Space:"), valueStyle.Render(fmt.Sprintf("%d", m.data.CharSpace))),
 		fmt.Sprintf("%s%s", propertyStyle.Render("Entropy:"), entropyColored),
-		fmt.Sprintf("%s%s", propertyStyle.Render("Combinations:"), valueStyle.Render(m.data.Combinations.String())),
+		fmt.Sprintf("%s%s", propertyStyle.Render("Combinations:"), valueStyle.Render(formatCombinations(m.data.Combinations))),
 		"",
 		fmt.Sprintf("%s%s", propertyStyle.Render("Target Hardware:"), valueStyle.Render(m.data.Hardware)),
 		fmt.Sprintf("%s%s", propertyStyle.Render("Hashrate:"), valueStyle.Render(fmt.Sprintf("%.0f H/s", m.data.HashRate))),
