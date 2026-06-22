@@ -106,7 +106,7 @@ echo "P@ssw0rd123!" | brtc
 | `--budget`          | `""`       | Set an attacker budget (e.g. `1000usd`) to see the max characters they can afford to crack                                                          |
 | `--output`, `-o`    | `tui`      | Output format (`tui`, `table`, `json`, `sarif`)                                                                                                     |
 | `--fail-under-time` | `""`       | CI/CD threshold to fail the run (e.g., `1y`, `30d`, `12h`)                                                                                          |
-| `--all-hw`          | `false`    | Compare the password across every hardware profile at once (ignores `--budget` and `--fail-under-time`)                                            |
+| `--all-hw`          | `false`    | Compare the password across every hardware profile at once (not combinable with `--budget`, `--fail-under-time`, or `-o sarif`)                     |
 | `--version`         | -          | Print the binary version and exit                                                                                                                   |
 
 ### Example Outputs
