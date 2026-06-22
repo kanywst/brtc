@@ -20,6 +20,12 @@ func ParseBudget(budgetStr string) (float64, error) {
 	return strconv.ParseFloat(strings.TrimSpace(clean), 64)
 }
 
+// UnlimitedBudgetChars is the sentinel MaxLengthForBudget returns when the
+// hardware has no rental cost (owned hardware): no finite budget can bound
+// the attacker, so any length is "affordable". Callers must treat it as an
+// infinity flag, not a literal character count.
+const UnlimitedBudgetChars = 999
+
 // MaxLengthForBudget calculates how many characters of a given charSpace
 // can be cracked within the given budget USD, assuming the specified
 // algo, hardware, work factor, and (for argon2id) memory parameter.
@@ -34,7 +40,7 @@ func MaxLengthForBudget(budgetUSD float64, hw, algo string, workFactor, memoryMB
 	p := lookupProfile(hw)
 
 	if p.CostPerHourUSD <= 0 {
-		return 999 // Effectively infinite characters if hardware cost is $0
+		return UnlimitedBudgetChars // Owned hardware: no budget bounds the attacker.
 	}
 
 	// Max Hours = Budget / CostPerHour

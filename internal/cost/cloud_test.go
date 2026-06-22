@@ -40,8 +40,8 @@ func TestParseBudget(t *testing.T) {
 func TestMaxLengthForBudget_OwnedHardwareReturnsSentinel(t *testing.T) {
 	// mac-m3 has CostPerHourUSD = 0, so any budget covers infinite time.
 	got := MaxLengthForBudget(100, "mac-m3", "md5", 10, 0, 94)
-	if got != 999 {
-		t.Errorf("owned hardware should return 999 sentinel, got %d", got)
+	if got != UnlimitedBudgetChars {
+		t.Errorf("owned hardware should return the unlimited sentinel, got %d", got)
 	}
 }
 

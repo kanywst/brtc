@@ -96,6 +96,26 @@ func TestOutputData_UnmarshalLegacyNumber(t *testing.T) {
 	}
 }
 
+func TestOutputData_BudgetUnlimitedJSON(t *testing.T) {
+	// Owned hardware: the unlimited flag is emitted and the meaningless
+	// budget_max_chars sentinel is omitted.
+	data := sampleData()
+	data.BudgetUSD = 1000
+	data.BudgetUnlimited = true
+
+	b, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	out := string(b)
+	if !strings.Contains(out, `"budget_unlimited":true`) {
+		t.Errorf("expected budget_unlimited:true in:\n%s", out)
+	}
+	if strings.Contains(out, "budget_max_chars") {
+		t.Errorf("budget_max_chars should be omitted when unlimited:\n%s", out)
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		secs    float64
