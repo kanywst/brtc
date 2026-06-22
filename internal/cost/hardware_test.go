@@ -80,6 +80,19 @@ func TestCalculateHashRate_Argon2MemoryScaling(t *testing.T) {
 	}
 }
 
+func TestResolveProfileName(t *testing.T) {
+	// A known profile resolves to its canonical key and reports known=true.
+	if name, known := ResolveProfileName("RTX-4090"); name != "rtx-4090" || !known {
+		t.Errorf("ResolveProfileName(RTX-4090) = (%q, %v), want (rtx-4090, true)", name, known)
+	}
+
+	// An unknown profile falls back to rtx-4090 and reports known=false so
+	// the caller can warn the user.
+	if name, known := ResolveProfileName("nope"); name != "rtx-4090" || known {
+		t.Errorf("ResolveProfileName(nope) = (%q, %v), want (rtx-4090, false)", name, known)
+	}
+}
+
 func TestTotalCost(t *testing.T) {
 	// rtx-4090 is $0.30/hour. 1 hour = $0.30.
 	got := TotalCost("rtx-4090", 3600)

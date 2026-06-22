@@ -59,6 +59,19 @@ func lookupProfile(hw string) HardwareProfile {
 	return Profiles[fallbackProfile]
 }
 
+// ResolveProfileName maps a user-supplied --hw value to the canonical
+// profile key actually used for the calculation. The bool reports whether
+// the input matched a known profile; when it is false the returned name is
+// the fallback profile, so callers can warn the user that their numbers
+// describe different hardware than they typed.
+func ResolveProfileName(hw string) (name string, known bool) {
+	key := strings.ToLower(strings.TrimSpace(hw))
+	if _, ok := Profiles[key]; ok {
+		return key, true
+	}
+	return fallbackProfile, false
+}
+
 // argon2BaselineMemoryMB is the memory parameter the Argon2id baseline
 // hashrates in hashrates.yaml are calibrated against. Doubling memory
 // roughly halves attacker throughput on memory-bandwidth-bound GPUs.
