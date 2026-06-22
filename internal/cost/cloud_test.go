@@ -1,6 +1,9 @@
 package cost
 
-import "testing"
+import (
+	"math/big"
+	"testing"
+)
 
 func TestParseBudget(t *testing.T) {
 	tests := []struct {
@@ -54,4 +57,51 @@ func TestMaxLengthForBudget_ZeroBudget(t *testing.T) {
 	if got := MaxLengthForBudget(0, "rtx-4090", "md5", 10, 0, 94); got != 0 {
 		t.Errorf("zero budget should return 0, got %d", got)
 	}
+}
+
+func TestMinLengthForTime(t *testing.T) {
+	// Zero threshold and a trivial charset have no answer.
+	if got := MinLengthForTime(0, "rtx-4090", "md5", 10, 0, 94); got != 0 {
+		t.Errorf("zero threshold should return 0, got %d", got)
+	}
+	if got := MinLengthForTime(31536000, "rtx-4090", "md5", 10, 0, 1); got != 0 {
+		t.Errorf("trivial charset should return 0, got %d", got)
+	}
+
+	// The recommended length must actually survive the threshold, and one
+	// character shorter must not — i.e. it is the *minimum* safe length.
+	const oneYear = 31536000.0
+	hw, algo, wf, cs := "rtx-4090", "md5", 10, 94
+	n := MinLengthForTime(oneYear, hw, algo, wf, 0, cs)
+	if n < 1 {
+		t.Fatalf("expected a positive length, got %d", n)
+	}
+	hr := CalculateHashRate(hw, algo, wf, 0)
+	ttcAt := func(l int) float64 {
+		c := new(big.Int).Exp(big.NewInt(int64(cs)), big.NewInt(int64(l)), nil)
+		return calcTimeToCrack(c, hr)
+	}
+	if ttcAt(n) < oneYear {
+		t.Errorf("recommended length %d does not survive one year", n)
+	}
+	if n > 1 && ttcAt(n-1) >= oneYear {
+		t.Errorf("length %d already survives, so %d is not the minimum", n-1, n)
+	}
+
+	// A stronger attacker (more hashes/sec) must require at least as many chars.
+	slow := MinLengthForTime(oneYear, "raspberry-pi-4", algo, wf, 0, cs)
+	fast := MinLengthForTime(oneYear, "aws-p5.48xlarge", algo, wf, 0, cs)
+	if fast < slow {
+		t.Errorf("faster attacker should need >= chars: slow=%d fast=%d", slow, fast)
+	}
+}
+
+// calcTimeToCrack mirrors calc.TimeToCrack locally to keep this package's
+// tests free of an import cycle while still checking the inverse relationship.
+func calcTimeToCrack(combinations *big.Int, hashRate float64) float64 {
+	c := new(big.Float).SetInt(combinations)
+	half := new(big.Float).Quo(c, big.NewFloat(2))
+	t := new(big.Float).Quo(half, big.NewFloat(hashRate))
+	f, _ := t.Float64()
+	return f
 }

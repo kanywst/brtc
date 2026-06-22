@@ -134,6 +134,17 @@ func (m model) View() string {
 		fmt.Sprintf("%s%s", propertyStyle.Render("Estimated Cost:"), costColored),
 	}
 
+	if m.data.RecommendedChars > 0 {
+		rows = append(rows, "")
+		rec := fmt.Sprintf("≥ %d chars (to resist this attacker)", m.data.RecommendedChars)
+		// Green once the current password already meets the recommendation.
+		recStyle := warningStyle
+		if m.data.PasswordLength >= m.data.RecommendedChars {
+			recStyle = safeStyle
+		}
+		rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("Recommended Len:"), recStyle.Render(rec)))
+	}
+
 	if m.data.BudgetUSD > 0 {
 		rows = append(rows, "")
 		rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("Budget Target:"), valueStyle.Render(fmt.Sprintf("$%.2f USD", m.data.BudgetUSD))))
