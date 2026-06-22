@@ -25,11 +25,15 @@ func renderTable(out io.Writer, data OutputData) error {
 	if data.MemoryMB > 0 {
 		rows = append(rows, [2]string{"Memory", fmt.Sprintf("%d MB", data.MemoryMB)})
 	}
+	combinations := "0"
+	if data.Combinations != nil {
+		combinations = data.Combinations.String()
+	}
 	rows = append(rows,
 		[2]string{"Password Length", fmt.Sprintf("%d chars", data.PasswordLength)},
 		[2]string{"Character Space", fmt.Sprintf("%d", data.CharSpace)},
 		[2]string{"Entropy", fmt.Sprintf("%.2f bits", data.Entropy)},
-		[2]string{"Combinations", data.Combinations.String()},
+		[2]string{"Combinations", combinations},
 		[2]string{"Target Hardware", data.Hardware},
 		[2]string{"Hashrate", fmt.Sprintf("%.0f H/s", data.HashRate)},
 		[2]string{"Time to Crack", FormatDuration(data.TimeToCrackSec)},
