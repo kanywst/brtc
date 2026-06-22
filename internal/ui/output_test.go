@@ -59,6 +59,32 @@ func TestOutputData_CombinationsMarshalsAsString(t *testing.T) {
 	}
 }
 
+func TestOutputData_NilCombinationsIsNull(t *testing.T) {
+	data := sampleData()
+	data.Combinations = nil
+
+	b, err := json.Marshal(data)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if !strings.Contains(string(b), `"combinations":null`) {
+		t.Errorf("nil combinations should marshal as null, got:\n%s", b)
+	}
+}
+
+func TestOutputData_UnmarshalLegacyNumber(t *testing.T) {
+	// Older payloads carried combinations as a bare JSON number; those must
+	// still decode for backward compatibility.
+	const legacy = `{"combinations": 572994802228616704}`
+	var got OutputData
+	if err := json.Unmarshal([]byte(legacy), &got); err != nil {
+		t.Fatalf("unmarshal legacy number failed: %v", err)
+	}
+	if got.Combinations == nil || got.Combinations.String() != "572994802228616704" {
+		t.Errorf("legacy number did not decode: got %v", got.Combinations)
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		secs    float64
