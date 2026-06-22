@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"text/tabwriter"
 )
 
@@ -45,9 +46,12 @@ func renderTable(out io.Writer, data OutputData) error {
 		)
 	}
 
-	fmt.Fprintln(w, "PROPERTY\tVALUE")
+	lines := []string{"PROPERTY\tVALUE"}
 	for _, r := range rows {
-		fmt.Fprintf(w, "%s\t%s\n", r[0], r[1])
+		lines = append(lines, r[0]+"\t"+r[1])
+	}
+	if _, err := io.WriteString(w, strings.Join(lines, "\n")+"\n"); err != nil {
+		return err
 	}
 	return w.Flush()
 }
