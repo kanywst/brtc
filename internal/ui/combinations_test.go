@@ -16,7 +16,8 @@ func TestFormatCombinations(t *testing.T) {
 		{"nil", nil, "0"},
 		{"small stays exact", big.NewInt(1234567890), "1234567890"},
 		{"21 digits stays exact", mustBig("100000000000000000000"), "100000000000000000000"},
-		{"22 digits goes scientific", mustBig("1234567890123456789012"), "≈ 1.234e21"},
+		{"22 digits rounds to scientific", mustBig("1234567890123456789012"), "≈ 1.235e21"},
+		{"negative scientific", mustBig("-1234567890123456789012"), "≈ -1.235e21"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
