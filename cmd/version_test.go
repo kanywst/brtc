@@ -12,7 +12,10 @@ func TestVersionFlag(t *testing.T) {
 	var out bytes.Buffer
 	rootCmd.SetOut(&out)
 	rootCmd.SetArgs([]string{"--version"})
-	t.Cleanup(func() { rootCmd.SetArgs(nil) })
+	t.Cleanup(func() {
+		rootCmd.SetArgs(nil)
+		rootCmd.SetOut(nil)
+	})
 
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("--version returned an error: %v", err)
