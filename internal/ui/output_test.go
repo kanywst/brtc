@@ -72,6 +72,17 @@ func TestOutputData_NilCombinationsIsNull(t *testing.T) {
 	}
 }
 
+func TestOutputData_UnmarshalNullClearsExisting(t *testing.T) {
+	// An explicit null must clear a pre-existing value, not leave it stale.
+	got := OutputData{Combinations: big.NewInt(42)}
+	if err := json.Unmarshal([]byte(`{"combinations": null}`), &got); err != nil {
+		t.Fatalf("unmarshal null failed: %v", err)
+	}
+	if got.Combinations != nil {
+		t.Errorf("null should clear combinations, got %v", got.Combinations)
+	}
+}
+
 func TestOutputData_UnmarshalLegacyNumber(t *testing.T) {
 	// Older payloads carried combinations as a bare JSON number; those must
 	// still decode for backward compatibility.
