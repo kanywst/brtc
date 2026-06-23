@@ -153,6 +153,8 @@ var rootCmd = &cobra.Command{
 		// --fail-under-time in particular would bypass a security gate.
 		if allHW {
 			switch {
+			case cmd.Flags().Changed("hw"):
+				return fmt.Errorf("--hw cannot be combined with --all-hw (it compares every profile)")
 			case budget != "":
 				return fmt.Errorf("--budget cannot be combined with --all-hw")
 			case failUnderTime != "":
