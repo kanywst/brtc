@@ -40,14 +40,18 @@ func renderTable(out io.Writer, data OutputData) error {
 		[2]string{"Estimated Cost", fmt.Sprintf("$%.2f USD", data.CostUSD)},
 	)
 	if data.BudgetUSD > 0 {
-		maxChars := fmt.Sprintf("%d chars (within budget)", data.BudgetMaxChars)
-		if data.BudgetMaxChars == 0 {
-			maxChars = "0 (cannot resist this attacker)"
+		rows = append(rows, [2]string{"Budget Target", fmt.Sprintf("$%.2f USD", data.BudgetUSD)})
+		switch {
+		case data.BudgetUnlimited:
+			rows = append(rows, [2]string{"Max Safe Chars", "unlimited (owned hardware, no rental cost)"})
+		case data.BudgetMaxChars != nil && *data.BudgetMaxChars > 0:
+			rows = append(rows, [2]string{"Max Safe Chars", fmt.Sprintf("%d chars (within budget)", *data.BudgetMaxChars)})
+		case data.BudgetMaxChars != nil:
+			rows = append(rows, [2]string{"Max Safe Chars", "0 (cannot resist this attacker)"})
 		}
-		rows = append(rows,
-			[2]string{"Budget Target", fmt.Sprintf("$%.2f USD", data.BudgetUSD)},
-			[2]string{"Max Safe Chars", maxChars},
-		)
+	}
+	if data.RecommendedChars > 0 {
+		rows = append(rows, [2]string{"Recommended Len", fmt.Sprintf(">= %d chars", data.RecommendedChars)})
 	}
 
 	lines := []string{"PROPERTY\tVALUE"}
