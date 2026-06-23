@@ -52,8 +52,14 @@ func init() {
 	Profiles = f.Profiles
 }
 
+// normalizeProfileKey maps a user-supplied --hw value to a lookup key, so
+// lookupProfile and ResolveProfileName agree on case and surrounding space.
+func normalizeProfileKey(hw string) string {
+	return strings.ToLower(strings.TrimSpace(hw))
+}
+
 func lookupProfile(hw string) HardwareProfile {
-	if p, ok := Profiles[strings.ToLower(hw)]; ok {
+	if p, ok := Profiles[normalizeProfileKey(hw)]; ok {
 		return p
 	}
 	return Profiles[fallbackProfile]
@@ -65,7 +71,7 @@ func lookupProfile(hw string) HardwareProfile {
 // the fallback profile, so callers can warn the user that their numbers
 // describe different hardware than they typed.
 func ResolveProfileName(hw string) (name string, known bool) {
-	key := strings.ToLower(strings.TrimSpace(hw))
+	key := normalizeProfileKey(hw)
 	if _, ok := Profiles[key]; ok {
 		return key, true
 	}
