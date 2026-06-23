@@ -168,9 +168,11 @@ var rootCmd = &cobra.Command{
 		case "sarif":
 			errOut = ui.PrintSARIF(outData)
 		case "tui":
-			fallthrough
-		default:
 			errOut = ui.RunTUI(outData)
+		default:
+			// A misspelled format previously fell through to the TUI, which is
+			// confusing in scripts; fail loudly instead.
+			return fmt.Errorf("unknown output format %q (want tui, json, or sarif)", outputFormat)
 		}
 		if errOut != nil {
 			return errOut
