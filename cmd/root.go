@@ -172,7 +172,7 @@ var rootCmd = &cobra.Command{
 		default:
 			// A misspelled format previously fell through to the TUI, which is
 			// confusing in scripts; fail loudly instead.
-			return fmt.Errorf("unknown output format %q (want tui, json, or sarif)", outputFormat)
+			return fmt.Errorf("unknown output format %q (want tui, table, json, or sarif)", outputFormat)
 		}
 		if errOut != nil {
 			return errOut
