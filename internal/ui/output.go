@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/big"
-	"strings"
+	"strconv"
 )
 
 type OutputData struct {
@@ -56,15 +56,25 @@ func (d *OutputData) UnmarshalJSON(b []byte) error {
 	if err := json.Unmarshal(b, &aux); err != nil {
 		return err
 	}
-	if len(aux.Combinations) == 0 || string(aux.Combinations) == "null" {
-		// Explicit null (or absent) clears the field, even if the target
-		// already held a value, so unmarshalling fully reflects the payload.
+	raw := string(aux.Combinations)
+	if len(raw) == 0 {
+		// Field absent: leave any existing value untouched, like stdlib merge.
+		return nil
+	}
+	if raw == "null" {
+		// Explicit null clears the field even if the target already held one.
 		d.Combinations = nil
 		return nil
 	}
-	// Strip the surrounding quotes for the string form; the legacy numeric
-	// form is already a bare integer literal.
-	s := strings.Trim(string(aux.Combinations), `"`)
+	// String form is a quoted integer; the legacy form is a bare number.
+	s := raw
+	if raw[0] == '"' {
+		unq, err := strconv.Unquote(raw)
+		if err != nil {
+			return fmt.Errorf("combinations: invalid quoted string %s", raw)
+		}
+		s = unq
+	}
 	n, ok := new(big.Int).SetString(s, 10)
 	if !ok {
 		return fmt.Errorf("combinations: invalid integer %q", s)
