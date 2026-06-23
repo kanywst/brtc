@@ -15,9 +15,13 @@ func TestRunE_RuntimeErrorDoesNotPrintUsage(t *testing.T) {
 	rootCmd.SetErr(&errOut)
 	rootCmd.SetArgs([]string{"abc", "--budget", "not-a-number"})
 	t.Cleanup(func() {
-		rootCmd.SetArgs(nil)
+		// Reset to an empty slice (not nil, which makes cobra fall back to
+		// os.Args and pick up `go test` flags) and undo the writer and the
+		// SilenceUsage mutation RunE makes on the shared rootCmd.
+		rootCmd.SetArgs([]string{})
 		rootCmd.SetOut(nil)
 		rootCmd.SetErr(nil)
+		rootCmd.SilenceUsage = false
 	})
 
 	err := rootCmd.Execute()
