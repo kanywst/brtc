@@ -13,7 +13,9 @@ func TestVersionFlag(t *testing.T) {
 	rootCmd.SetOut(&out)
 	rootCmd.SetArgs([]string{"--version"})
 	t.Cleanup(func() {
-		rootCmd.SetArgs(nil)
+		// Empty slice, not nil: nil makes cobra fall back to os.Args (the
+		// go test flags) on a later Execute.
+		rootCmd.SetArgs([]string{})
 		rootCmd.SetOut(nil)
 	})
 
