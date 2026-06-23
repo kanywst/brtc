@@ -57,6 +57,9 @@ func (d *OutputData) UnmarshalJSON(b []byte) error {
 		return err
 	}
 	if len(aux.Combinations) == 0 || string(aux.Combinations) == "null" {
+		// Explicit null (or absent) clears the field, even if the target
+		// already held a value, so unmarshalling fully reflects the payload.
+		d.Combinations = nil
 		return nil
 	}
 	// Strip the surrounding quotes for the string form; the legacy numeric
