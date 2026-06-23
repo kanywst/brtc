@@ -22,7 +22,7 @@ func TestVersionFlag(t *testing.T) {
 	if err := rootCmd.Execute(); err != nil {
 		t.Fatalf("--version returned an error: %v", err)
 	}
-	if !strings.Contains(out.String(), version) {
-		t.Errorf("--version output %q does not contain version %q", out.String(), version)
+	if !strings.Contains(out.String(), getVersion()) {
+		t.Errorf("--version output %q does not contain version %q", out.String(), getVersion())
 	}
 }
