@@ -22,6 +22,7 @@ func TestRunE_RuntimeErrorDoesNotPrintUsage(t *testing.T) {
 		rootCmd.SetOut(nil)
 		rootCmd.SetErr(nil)
 		rootCmd.SilenceUsage = false
+		budget = "" // flag-bound global, mutated by Execute; reset for isolation
 	})
 
 	err := rootCmd.Execute()
