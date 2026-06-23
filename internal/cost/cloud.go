@@ -22,9 +22,10 @@ func ParseBudget(budgetStr string) (float64, error) {
 
 // UnlimitedBudgetChars is the sentinel MaxLengthForBudget returns when the
 // hardware has no rental cost (owned hardware): no finite budget can bound
-// the attacker, so any length is "affordable". Callers must treat it as an
-// infinity flag, not a literal character count.
-const UnlimitedBudgetChars = 999
+// the attacker, so any length is "affordable". It is math.MaxInt rather than
+// a small number so it can never collide with a genuinely computed length.
+// Callers must treat it as an infinity flag, not a literal character count.
+const UnlimitedBudgetChars = math.MaxInt
 
 // MaxLengthForBudget calculates how many characters of a given charSpace
 // can be cracked within the given budget USD, assuming the specified
