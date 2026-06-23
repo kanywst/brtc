@@ -86,6 +86,11 @@ func TestResolveProfileName(t *testing.T) {
 		t.Errorf("ResolveProfileName(RTX-4090) = (%q, %v), want (rtx-4090, true)", name, known)
 	}
 
+	// Surrounding whitespace is trimmed, matching lookupProfile.
+	if name, known := ResolveProfileName("  rtx-4090  "); name != "rtx-4090" || !known {
+		t.Errorf("ResolveProfileName(padded) = (%q, %v), want (rtx-4090, true)", name, known)
+	}
+
 	// An unknown profile falls back to rtx-4090 and reports known=false so
 	// the caller can warn the user.
 	if name, known := ResolveProfileName("nope"); name != "rtx-4090" || known {
