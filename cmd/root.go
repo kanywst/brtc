@@ -58,8 +58,9 @@ var (
 
 // buildMatrix runs the given combination count against every known hardware
 // profile and returns the rows sorted fastest-attacker-first (then by name
-// for a stable order).
-func buildMatrix(combinations *big.Int, memoryMB int) []ui.MatrixRow {
+// for a stable order). algo and workFactor are passed in (rather than read
+// from globals) so the function stays pure and testable.
+func buildMatrix(combinations *big.Int, algo string, workFactor, memoryMB int) []ui.MatrixRow {
 	rows := make([]ui.MatrixRow, 0, len(cost.Profiles))
 	for key, p := range cost.Profiles {
 		hr := cost.CalculateHashRate(key, algo, workFactor, memoryMB)
@@ -157,7 +158,7 @@ var rootCmd = &cobra.Command{
 			case failUnderTime != "":
 				return fmt.Errorf("--fail-under-time cannot be combined with --all-hw")
 			}
-			rows := buildMatrix(entropy.Combinations, memoryMB)
+			rows := buildMatrix(entropy.Combinations, algo, workFactor, memoryMB)
 			switch strings.ToLower(outputFormat) {
 			case "json":
 				return ui.PrintMatrixJSON(rows)
