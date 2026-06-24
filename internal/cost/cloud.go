@@ -60,8 +60,13 @@ func MaxLengthForBudget(budgetUSD float64, hw, algo string, workFactor, memoryMB
 	// L = ln(maxCombinations) / ln(R)
 	l := math.Log(maxCombinations) / math.Log(float64(charSpace))
 
-	// Return the floor of L because adding one more character would exceed the budget.
-	return int(math.Floor(l))
+	// Floor of L because one more character would exceed the budget. A tiny
+	// budget (or very slow attacker) yields l < 0; clamp to 0 so the caller
+	// never sees a negative "max safe length".
+	if floored := int(math.Floor(l)); floored > 0 {
+		return floored
+	}
+	return 0
 }
 
 // MinLengthForTime returns the smallest password length over the given
