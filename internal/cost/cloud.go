@@ -49,16 +49,15 @@ func MaxLengthForBudget(budgetUSD float64, hw, algo string, workFactor, memoryMB
 	maxSeconds := maxHours * 3600.0
 
 	hashRate := CalculateHashRate(hw, algo, workFactor, memoryMB)
-
-	// T_avg = (R^L / 2) / H  =>  R^L / 2 = T_avg * H  =>  R^L = 2 * T_avg * H
-	// L * log(R) = log(2 * T_avg * H)
-	maxCombinations := 2.0 * maxSeconds * hashRate
-	if maxCombinations <= 0 {
+	if maxSeconds <= 0 || hashRate <= 0 {
 		return 0
 	}
 
-	// L = ln(maxCombinations) / ln(R)
-	l := math.Log(maxCombinations) / math.Log(float64(charSpace))
+	// T_avg = (R^L / 2) / H  =>  R^L = 2 * T_avg * H, so
+	// L = log_R(2 * T_avg * H) = (ln2 + ln(T_avg) + ln(H)) / ln(R).
+	// Summing the logs avoids overflowing the 2*T_avg*H product to +Inf for
+	// an astronomically large budget, which would yield a garbage int cast.
+	l := (math.Ln2 + math.Log(maxSeconds) + math.Log(hashRate)) / math.Log(float64(charSpace))
 
 	// Floor of L because one more character would exceed the budget. A tiny
 	// budget (or very slow attacker) yields l < 0; clamp to 0 so the caller

@@ -67,6 +67,16 @@ func TestMaxLengthForBudget_TinyBudgetClampsToZero(t *testing.T) {
 	}
 }
 
+func TestMaxLengthForBudget_HugeBudgetStaysFinite(t *testing.T) {
+	// An astronomically large budget on rented hardware must yield a large but
+	// finite length, never overflow to garbage or hit the owned-hardware
+	// unlimited sentinel.
+	got := MaxLengthForBudget(1e300, "rtx-4090", "md5", 10, 0, 94)
+	if got <= 0 || got == UnlimitedBudgetChars {
+		t.Errorf("huge budget on rented hw = %d, want a large finite length", got)
+	}
+}
+
 func TestMinLengthForTime(t *testing.T) {
 	// Zero threshold and a trivial charset have no answer.
 	if got := MinLengthForTime(0, "rtx-4090", "md5", 10, 0, 94); got != 0 {
