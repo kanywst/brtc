@@ -159,16 +159,14 @@ var rootCmd = &cobra.Command{
 				return fmt.Errorf("--budget cannot be combined with --all-hw")
 			case failUnderTime != "":
 				return fmt.Errorf("--fail-under-time cannot be combined with --all-hw")
+			case strings.ToLower(outputFormat) == "sarif":
+				return fmt.Errorf("sarif output is not supported with --all-hw")
 			}
 			rows := buildMatrix(entropy.Combinations, algo, workFactor, memoryMB)
-			switch strings.ToLower(outputFormat) {
-			case "json":
+			if strings.ToLower(outputFormat) == "json" {
 				return ui.PrintMatrixJSON(rows)
-			case "sarif":
-				return fmt.Errorf("sarif output is not supported with --all-hw")
-			default:
-				return ui.PrintMatrixTable(rows)
 			}
+			return ui.PrintMatrixTable(rows)
 		}
 
 		// 2. Hardware HashRate
