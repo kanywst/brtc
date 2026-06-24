@@ -59,6 +59,14 @@ func TestMaxLengthForBudget_ZeroBudget(t *testing.T) {
 	}
 }
 
+func TestMaxLengthForBudget_TinyBudgetClampsToZero(t *testing.T) {
+	// A budget too small to afford even one character must clamp to 0, never
+	// surface a negative length.
+	if got := MaxLengthForBudget(0.0001, "aws-p5.48xlarge", "argon2id", 10, 0, 94); got < 0 {
+		t.Errorf("tiny budget should clamp to 0, got %d", got)
+	}
+}
+
 func TestMinLengthForTime(t *testing.T) {
 	// Zero threshold and a trivial charset have no answer.
 	if got := MinLengthForTime(0, "rtx-4090", "md5", 10, 0, 94); got != 0 {
