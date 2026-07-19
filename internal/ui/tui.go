@@ -48,6 +48,8 @@ var (
 			Padding(1, 4).
 			MarginTop(1).
 			MarginLeft(2)
+
+	noteStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4")).Italic(true)
 )
 
 type model struct {
@@ -130,6 +132,8 @@ func (m model) View() string {
 			}
 		}
 	}
+
+	rows = append(rows, "", noteStyle.Render(EntropyModelNote(m.data)))
 
 	content := strings.Join(rows, "\n")
 	return boxStyle.Render(content) + "\n\n"

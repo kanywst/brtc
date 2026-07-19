@@ -47,7 +47,8 @@ func (d OutputData) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
 		alias
 		Combinations *string `json:"combinations"`
-	}{alias: alias(d), Combinations: combinations})
+		EntropyModel string  `json:"entropy_model"`
+	}{alias: alias(d), Combinations: combinations, EntropyModel: EntropyModelNote(d)})
 }
 
 // UnmarshalJSON is the inverse of MarshalJSON: it reads combinations back into
@@ -87,6 +88,19 @@ func (d *OutputData) UnmarshalJSON(b []byte) error {
 	}
 	d.Combinations = n
 	return nil
+}
+
+// EntropyModelNote describes how the entropy/combination figure was derived,
+// so the output does not present a naive number as ground truth. NIST SP
+// 800-63B-4 (2025) explicitly de-emphasizes character-space entropy for
+// human-chosen passwords, so brtc labels its default estimate as a
+// random-password upper bound and points at the pattern-aware --guesses path.
+func EntropyModelNote(data OutputData) string {
+	if data.CharSpace == 0 {
+		return "note: strength from an external guess count (e.g. zxcvbn) — pattern-aware."
+	}
+	return "note: entropy is an R^L brute-force upper bound assuming a RANDOM password; " +
+		"a human-chosen one may be far weaker (pair with zxcvbn via --guesses)."
 }
 
 func PrintJSON(data OutputData) error {

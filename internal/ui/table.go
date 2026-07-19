@@ -61,5 +61,9 @@ func renderTable(out io.Writer, data OutputData) error {
 	if _, err := io.WriteString(w, strings.Join(lines, "\n")+"\n"); err != nil {
 		return err
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	_, err := io.WriteString(out, EntropyModelNote(data)+"\n")
+	return err
 }
