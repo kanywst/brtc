@@ -151,3 +151,15 @@ func TestMarshalJSON_InfiniteFieldsAreFinite(t *testing.T) {
 		t.Errorf("JSON should not contain Inf/NaN, got: %s", b)
 	}
 }
+
+func TestFormatDuration_NaN(t *testing.T) {
+	if got := FormatDuration(math.NaN()); got != "Less than a second" {
+		t.Errorf("FormatDuration(NaN) = %q, want fail-safe 'Less than a second'", got)
+	}
+}
+
+func TestAddThousands_Negative(t *testing.T) {
+	if got := addThousands("-123456"); got != "-123,456" {
+		t.Errorf("addThousands(-123456) = %q, want -123,456", got)
+	}
+}

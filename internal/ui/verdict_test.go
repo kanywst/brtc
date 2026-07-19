@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
@@ -64,5 +65,14 @@ func TestView_ShowsBreachRow(t *testing.T) {
 	d.BreachCount = 42
 	if out := initialModel(d).View(); !strings.Contains(out, "HIBP Breaches") {
 		t.Errorf("view should show the HIBP breach row when checked, got:\n%s", out)
+	}
+}
+
+func TestRenderVerdict_NaNIsUnknownNotResistant(t *testing.T) {
+	d := sampleData()
+	d.TimeToCrackSec = math.NaN()
+	got := renderVerdict(d)
+	if !strings.Contains(got, "UNKNOWN") {
+		t.Errorf("NaN crack time must read UNKNOWN, not fall through to RESISTANT, got %q", got)
 	}
 }
