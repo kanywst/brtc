@@ -99,10 +99,10 @@ func TestResolveProfileName(t *testing.T) {
 }
 
 func TestTotalCost(t *testing.T) {
-	// rtx-4090 is $0.30/hour. 1 hour = $0.30.
+	// rtx-4090 is $0.35/hour. 1 hour = $0.35.
 	got := TotalCost("rtx-4090", 3600)
-	if math.Abs(got-0.30) > 1e-9 {
-		t.Errorf("TotalCost(rtx-4090, 1h) = %v, want 0.30", got)
+	if math.Abs(got-0.35) > 1e-9 {
+		t.Errorf("TotalCost(rtx-4090, 1h) = %v, want 0.35", got)
 	}
 
 	// Owned hardware costs nothing regardless of duration.
@@ -116,7 +116,7 @@ func TestProfilesContainAdvertisedNames(t *testing.T) {
 	// otherwise users get a silent fallback to rtx-4090 (a much faster GPU)
 	// and their cost numbers become a lie.
 	advertised := []string{
-		"rtx-4090", "rtx-3060", "gtx-1080ti",
+		"rtx-5090", "rtx-4090", "rx-7900xtx", "rtx-3060", "gtx-1080ti",
 		"mac-m3", "mac-m3-max",
 		"cpu-standard", "aws-p5.48xlarge", "raspberry-pi-4",
 	}
@@ -131,7 +131,7 @@ func TestProfilesContainAdvertisedNames(t *testing.T) {
 // the CLI exposes via --algo, plus a citation. Catches data drift where a
 // new algorithm or profile is added but the YAML row is left half-filled.
 func TestProfilesAreComplete(t *testing.T) {
-	requiredAlgos := []string{"md5", "sha256", "bcrypt", "argon2id"}
+	requiredAlgos := []string{"md5", "sha1", "sha256", "ntlm", "bcrypt", "argon2id"}
 
 	for name, p := range Profiles {
 		t.Run(name, func(t *testing.T) {
