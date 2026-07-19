@@ -176,6 +176,8 @@ var rootCmd = &cobra.Command{
 				return fmt.Errorf("--fail-under-time cannot be combined with --all-hw")
 			case strings.ToLower(outputFormat) == "sarif":
 				return fmt.Errorf("sarif output is not supported with --all-hw")
+			case useHIBP:
+				return fmt.Errorf("--hibp cannot be combined with --all-hw")
 			}
 			rows := buildMatrix(entropy.Combinations, algo, workFactor, memoryMB)
 			if strings.ToLower(outputFormat) == "json" {
@@ -298,8 +300,15 @@ var rootCmd = &cobra.Command{
 			return errOut
 		}
 
-		// Gatekeeper (fail-under-time) logic. reqSecs was parsed and validated
-		// above; a zero value means the flag was not set.
+		// Gatekeeper logic. A known-breached password is an unconditional
+		// failure of the gate: no crack-time margin matters if the plaintext is
+		// already in a public corpus. This keeps the exit code consistent with
+		// the COMPROMISED verdict the output just printed.
+		if reqSecs > 0 && breachChecked && breachCount > 0 {
+			return fmt.Errorf("gatekeeper failed: password found in %d known breaches", breachCount)
+		}
+		// fail-under-time: reqSecs was parsed and validated above; a zero value
+		// means the flag was not set.
 		if reqSecs > 0 && ttc < reqSecs {
 			return fmt.Errorf("gatekeeper failed: estimated crack time (%s) is less than required (%s)",
 				ui.FormatDuration(ttc), ui.FormatDuration(reqSecs))
