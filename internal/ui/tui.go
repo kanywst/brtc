@@ -80,7 +80,7 @@ func (m model) View() string {
 		timeColored = safeStyle.Render(timeStr)
 	}
 
-	costStr := fmt.Sprintf("$%.2f USD", m.data.CostUSD)
+	costStr := FormatCost(m.data.CostUSD) + " USD"
 	var costColored string
 	if m.data.CostUSD < 100 {
 		costColored = criticalStyle.Render(costStr)
@@ -92,13 +92,16 @@ func (m model) View() string {
 
 	rows := []string{
 		titleStyle.Render(fmt.Sprintf("brtc: Brute-force Cost Analysis (%s)", m.data.Algorithm)),
+		renderVerdict(m.data),
+		"",
 		fmt.Sprintf("%s%s", propertyStyle.Render("Password Length:"), valueStyle.Render(fmt.Sprintf("%d chars", m.data.PasswordLength))),
 		fmt.Sprintf("%s%s", propertyStyle.Render("Character Space:"), valueStyle.Render(fmt.Sprintf("%d", m.data.CharSpace))),
 		fmt.Sprintf("%s%s", propertyStyle.Render("Entropy:"), entropyColored),
+		fmt.Sprintf("%s%s", propertyStyle.Render(""), renderEntropyBar(m.data.Entropy)),
 		fmt.Sprintf("%s%s", propertyStyle.Render("Combinations:"), valueStyle.Render(formatCombinations(m.data.Combinations))),
 		"",
 		fmt.Sprintf("%s%s", propertyStyle.Render("Target Hardware:"), valueStyle.Render(m.data.Hardware)),
-		fmt.Sprintf("%s%s", propertyStyle.Render("Hashrate:"), valueStyle.Render(fmt.Sprintf("%.0f H/s", m.data.HashRate))),
+		fmt.Sprintf("%s%s", propertyStyle.Render("Hashrate:"), valueStyle.Render(FormatHashRate(m.data.HashRate))),
 		fmt.Sprintf("%s%s", propertyStyle.Render("Time to Crack:"), timeColored),
 		fmt.Sprintf("%s%s", propertyStyle.Render("Estimated Cost:"), costColored),
 	}
@@ -130,6 +133,53 @@ func (m model) View() string {
 
 	content := strings.Join(rows, "\n")
 	return boxStyle.Render(content) + "\n\n"
+}
+
+// entropyBarWidth is the cell count of the entropy gauge. entropyBarCap is the
+// bit value that fills it completely; 128 bits is the "comfortably beyond any
+// brute force" mark, so a full bar reads as "as strong as this gauge tracks".
+const (
+	entropyBarWidth = 16
+	entropyBarCap   = 128.0
+)
+
+// renderEntropyBar draws a coloured gauge like "████████░░░░░░░░ 78/128 bits"
+// so strength is legible at a glance, not just as a number. The fill colour
+// reuses the entropy severity thresholds used elsewhere in the view.
+func renderEntropyBar(entropy float64) string {
+	ratio := entropy / entropyBarCap
+	if ratio < 0 {
+		ratio = 0
+	} else if ratio > 1 {
+		ratio = 1
+	}
+	filled := int(ratio*entropyBarWidth + 0.5)
+
+	style := safeStyle
+	if entropy < 50 {
+		style = criticalStyle
+	} else if entropy < 80 {
+		style = warningStyle
+	}
+
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", entropyBarWidth-filled)
+	return fmt.Sprintf("%s %s", style.Render(bar), valueStyle.Render(fmt.Sprintf("%.0f/%.0f bits", entropy, entropyBarCap)))
+}
+
+// renderVerdict is the one-line headline under the title: the whole point of
+// the tool distilled into "how bad is it", coloured red/yellow/green. It keys
+// off crack time (the metric a human feels) and appends the price tag.
+func renderVerdict(data OutputData) string {
+	cost := FormatCost(data.CostUSD)
+	time := FormatDuration(data.TimeToCrackSec)
+	switch {
+	case data.TimeToCrackSec < 86400: // under a day
+		return criticalStyle.Render(fmt.Sprintf("VERDICT: TRIVIALLY CRACKABLE — %s for %s", time, cost))
+	case data.TimeToCrackSec < 31536000: // under a year
+		return warningStyle.Render(fmt.Sprintf("VERDICT: CRACKABLE — %s for %s", time, cost))
+	default:
+		return safeStyle.Render(fmt.Sprintf("VERDICT: RESISTANT — %s, %s", time, cost))
+	}
 }
 
 // RunTUI prints the styled result box to stdout. The view is fully determined
