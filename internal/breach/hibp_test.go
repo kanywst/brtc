@@ -2,6 +2,7 @@ package breach
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -26,16 +27,40 @@ func TestCountInBody(t *testing.T) {
 		"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF:1",
 	}, "\r\n")
 
-	if n, found := countInBody(strings.NewReader(body), "1E4C9B93F3F0682250B6CF8331B7EE68FD8"); !found || n != 9659365 {
-		t.Errorf("matching suffix = (%d, %v), want (9659365, true)", n, found)
+	if n, found, err := countInBody(strings.NewReader(body), "1E4C9B93F3F0682250B6CF8331B7EE68FD8"); err != nil || !found || n != 9659365 {
+		t.Errorf("matching suffix = (%d, %v, %v), want (9659365, true, nil)", n, found, err)
 	}
 	// Case-insensitive match (HIBP is uppercase; be forgiving of input).
-	if n, found := countInBody(strings.NewReader(body), "1e4c9b93f3f0682250b6cf8331b7ee68fd8"); !found || n != 9659365 {
-		t.Errorf("lowercase suffix should still match, got (%d, %v)", n, found)
+	if n, found, err := countInBody(strings.NewReader(body), "1e4c9b93f3f0682250b6cf8331b7ee68fd8"); err != nil || !found || n != 9659365 {
+		t.Errorf("lowercase suffix should still match, got (%d, %v, %v)", n, found, err)
 	}
 	// Absent suffix.
-	if _, found := countInBody(strings.NewReader(body), "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"); found {
-		t.Error("absent suffix should not be found")
+	if _, found, err := countInBody(strings.NewReader(body), "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"); err != nil || found {
+		t.Errorf("absent suffix should not be found, got (found=%v, err=%v)", found, err)
+	}
+}
+
+// errReader fails partway through, simulating a truncated response body.
+type errReader struct {
+	data []byte
+	read bool
+}
+
+func (e *errReader) Read(p []byte) (int, error) {
+	if e.read {
+		return 0, io.ErrUnexpectedEOF
+	}
+	e.read = true
+	n := copy(p, e.data)
+	return n, nil
+}
+
+func TestCountInBody_ScanErrorPropagates(t *testing.T) {
+	// A body that errors before the suffix is seen must NOT be reported as a
+	// clean "not found" — that would tell the user a breached password is safe.
+	r := &errReader{data: []byte("0000:0\n")}
+	if _, found, err := countInBody(r, "1E4C9B93F3F0682250B6CF8331B7EE68FD8"); err == nil || found {
+		t.Errorf("truncated body should surface an error, got (found=%v, err=%v)", found, err)
 	}
 }
 

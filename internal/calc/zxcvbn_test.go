@@ -1,6 +1,7 @@
 package calc
 
 import (
+	"math"
 	"math/big"
 	"testing"
 )
@@ -37,5 +38,20 @@ func TestZxcvbn_FeedsIntoPipeline(t *testing.T) {
 	}
 	if res.Combinations.Cmp(g) != 0 {
 		t.Errorf("combinations should equal the guess count %s, got %s", g, res.Combinations)
+	}
+}
+
+func TestGuessesToBigInt(t *testing.T) {
+	if got := guessesToBigInt(math.Inf(1)); got.BitLen() != 1025 {
+		t.Errorf("+Inf should map to the 2^1024 sentinel, got BitLen %d", got.BitLen())
+	}
+	if got := guessesToBigInt(math.NaN()); got.Sign() != 0 {
+		t.Errorf("NaN should map to 0, got %s", got)
+	}
+	if got := guessesToBigInt(-5); got.Sign() != 0 {
+		t.Errorf("negative should map to 0, got %s", got)
+	}
+	if got := guessesToBigInt(12345.9); got.Cmp(big.NewInt(12345)) != 0 {
+		t.Errorf("finite should truncate to 12345, got %s", got)
 	}
 }

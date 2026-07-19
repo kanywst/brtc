@@ -1,6 +1,7 @@
 package calc
 
 import (
+	"math"
 	"math/big"
 
 	"github.com/trustelem/zxcvbn"
@@ -16,12 +17,28 @@ import (
 // same downstream time/cost pipeline the external --guesses flag uses.
 func Zxcvbn(password string) (guesses *big.Int, score int) {
 	r := zxcvbn.PasswordStrength(password, nil)
-	// r.Guesses is a float64; convert without losing the magnitude for large
-	// counts. big.NewFloat -> Int truncates the fractional part, which is fine
-	// for a guess count.
-	g, _ := big.NewFloat(r.Guesses).Int(nil)
-	if g == nil || g.Sign() < 0 {
-		g = big.NewInt(0)
+	return guessesToBigInt(r.Guesses), r.Score
+}
+
+// guessesToBigInt converts a zxcvbn float64 guess count to a *big.Int.
+//
+// For a very strong password r.Guesses can overflow to +Inf; big.Float.Int
+// then yields a nil *big.Int, which naively collapses to 0 guesses — i.e.
+// "instantly crackable", the exact opposite of the truth. Map +Inf to a huge
+// sentinel (2^1024, which reads back as +Inf downstream) so an unguessable
+// password stays unguessable, and clamp NaN / non-positive input to 0.
+func guessesToBigInt(g float64) *big.Int {
+	switch {
+	case math.IsNaN(g) || g <= 0:
+		return big.NewInt(0)
+	case math.IsInf(g, 1):
+		return new(big.Int).Lsh(big.NewInt(1), 1024)
 	}
-	return g, r.Score
+	// big.NewFloat -> Int truncates the fractional part, which is fine for a
+	// guess count.
+	n, _ := big.NewFloat(g).Int(nil)
+	if n == nil || n.Sign() < 0 {
+		return big.NewInt(0)
+	}
+	return n
 }
