@@ -97,8 +97,11 @@ func Check(ctx context.Context, password string, client *http.Client) (Result, e
 	}
 	// Drain any unread body before closing so the transport can reuse the
 	// connection: countInBody returns early on a match, leaving bytes behind.
+	// Cap the drain with a LimitReader so a malicious/huge response cannot pin
+	// the goroutine reading an unbounded stream. A real range response is only
+	// a few tens of KB; 1 MiB is comfortable headroom.
 	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
 		_ = resp.Body.Close()
 	}()
 
