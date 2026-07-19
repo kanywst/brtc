@@ -15,7 +15,18 @@ import (
 //
 // The returned guess count is meant to be fed through FromGuesses, giving the
 // same downstream time/cost pipeline the external --guesses flag uses.
+// maxZxcvbnRunes caps the input length before analysis. zxcvbn's pattern
+// matching is super-linear on very long or highly repetitive inputs, so an
+// attacker-supplied megabyte string could pin a CPU (DoS). Anything past a few
+// hundred characters is already unguessable, so truncating loses no signal.
+const maxZxcvbnRunes = 256
+
 func Zxcvbn(password string) (guesses *big.Int, score int) {
+	// Truncate by runes, not bytes, so a multi-byte character is never split
+	// into invalid UTF-8 at the boundary.
+	if runes := []rune(password); len(runes) > maxZxcvbnRunes {
+		password = string(runes[:maxZxcvbnRunes])
+	}
 	r := zxcvbn.PasswordStrength(password, nil)
 	return guessesToBigInt(r.Guesses), r.Score
 }
