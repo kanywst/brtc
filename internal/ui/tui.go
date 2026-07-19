@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 
@@ -136,7 +137,7 @@ func (m model) View() string {
 	if m.data.BreachChecked {
 		rows = append(rows, "")
 		if m.data.BreachCount > 0 {
-			breach := criticalStyle.Render(fmt.Sprintf("⚠ found %s times — change it", humanScale(float64(m.data.BreachCount))))
+			breach := criticalStyle.Render(fmt.Sprintf("⚠ found %s times — change it", FormatCount(m.data.BreachCount)))
 			rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("HIBP Breaches:"), breach))
 		} else {
 			rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("HIBP Breaches:"), safeStyle.Render("not found in the corpus")))
@@ -161,10 +162,14 @@ const (
 // so strength is legible at a glance, not just as a number. The fill colour
 // reuses the entropy severity thresholds used elsewhere in the view.
 func renderEntropyBar(entropy float64) string {
+	// Guard NaN before the ratio math: NaN fails every comparison below, so it
+	// would slip past the clamp and int(NaN) yields a huge negative value that
+	// panics strings.Repeat with a negative count.
+	if math.IsNaN(entropy) || entropy < 0 {
+		entropy = 0
+	}
 	ratio := entropy / entropyBarCap
-	if ratio < 0 {
-		ratio = 0
-	} else if ratio > 1 {
+	if ratio > 1 {
 		ratio = 1
 	}
 	filled := int(ratio*entropyBarWidth + 0.5)
@@ -189,7 +194,7 @@ func renderVerdict(data OutputData) string {
 	// time-based verdict.
 	if data.BreachChecked && data.BreachCount > 0 {
 		return criticalStyle.Render(fmt.Sprintf("VERDICT: COMPROMISED — found in %s known breaches, crack time is irrelevant",
-			humanScale(float64(data.BreachCount))))
+			FormatCount(data.BreachCount)))
 	}
 	cost := FormatCost(data.CostUSD)
 	time := FormatDuration(data.TimeToCrackSec)

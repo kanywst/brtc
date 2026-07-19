@@ -97,3 +97,57 @@ func TestEntropyModelNote(t *testing.T) {
 		t.Errorf("external note should mention the external estimate, got %q", EntropyModelNote(external))
 	}
 }
+
+func TestFormatCount(t *testing.T) {
+	cases := map[int]string{42: "42", 1000: "1,000", 9659365: "9,659,365"}
+	for in, want := range cases {
+		if got := FormatCount(in); got != want {
+			t.Errorf("FormatCount(%d) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestFormatCost_NaN(t *testing.T) {
+	if got := FormatCost(math.NaN()); got != "$0.00" {
+		t.Errorf("FormatCost(NaN) = %q, want $0.00", got)
+	}
+}
+
+func TestSanitizeFloat(t *testing.T) {
+	if got := sanitizeFloat(math.Inf(1)); got != math.MaxFloat64 {
+		t.Errorf("sanitizeFloat(+Inf) = %v, want MaxFloat64", got)
+	}
+	if got := sanitizeFloat(math.NaN()); got != 0 {
+		t.Errorf("sanitizeFloat(NaN) = %v, want 0", got)
+	}
+	if got := sanitizeFloat(math.Inf(-1)); got != 0 {
+		t.Errorf("sanitizeFloat(-Inf) = %v, want 0", got)
+	}
+	if got := sanitizeFloat(3.5); got != 3.5 {
+		t.Errorf("sanitizeFloat(3.5) = %v, want 3.5", got)
+	}
+}
+
+func TestRenderEntropyBar_NaNDoesNotPanic(t *testing.T) {
+	// Regression: NaN slipped past the ratio clamp and int(NaN) produced a
+	// negative repeat count that panicked strings.Repeat.
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("renderEntropyBar(NaN) panicked: %v", r)
+		}
+	}()
+	_ = renderEntropyBar(math.NaN())
+}
+
+func TestMarshalJSON_InfiniteFieldsAreFinite(t *testing.T) {
+	d := sampleData()
+	d.TimeToCrackSec = math.Inf(1)
+	d.CostUSD = math.Inf(1)
+	b, err := d.MarshalJSON()
+	if err != nil {
+		t.Fatalf("MarshalJSON with +Inf fields failed: %v", err)
+	}
+	if strings.Contains(string(b), "Inf") || strings.Contains(string(b), "NaN") {
+		t.Errorf("JSON should not contain Inf/NaN, got: %s", b)
+	}
+}

@@ -128,6 +128,13 @@ func CalculateHashRate(hw, algo string, workFactor, memoryMB int) float64 {
 
 func TotalCost(hw string, timeInSeconds float64) float64 {
 	p := lookupProfile(hw)
+	// Owned hardware is free regardless of crack time. Returning 0 explicitly
+	// avoids Inf*0 = NaN when timeInSeconds overflows to +Inf for an
+	// astronomically long password, which would otherwise poison the cost as
+	// NaN (unmarshalable to JSON, rendered as "$NaN" in text).
+	if p.CostPerHourUSD == 0 {
+		return 0
+	}
 	hours := timeInSeconds / 3600.0
 	return hours * p.CostPerHourUSD
 }
