@@ -23,8 +23,8 @@ Instead of just telling you a password is "Weak" or "Strong", `brtc` pits your s
 ## Features
 
 - **Financial Cost Visualization:** Uses current spot prices for AWS or GPU providers to calculate the total USD cost to crack your hash.
-- **Hardware Simulation:** Select between various physical and cloud profiles (`rtx-4090`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`) to see how hardware scales the threat.
-- **Hash Algorithms:** Simulates the braking power of `md5`, `sha256`, `bcrypt`, and `argon2id` with adjustable work factors.
+- **Hardware Simulation:** Select between various physical and cloud profiles (`rtx-5090`, `rtx-4090`, `rx-7900xtx`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`) to see how hardware scales the threat. Baselines are 2026 hashcat numbers (RTX 5090 Blackwell is the current top cracker).
+- **Hash Algorithms:** Simulates the braking power of `md5`, `sha1`, `sha256`, `ntlm`, `bcrypt`, and `argon2id` with adjustable work factors.
 - **Terminal UI:** Beautiful, color-coded output built on [Lipgloss](https://github.com/charmbracelet/lipgloss).
 - **CI/CD Gatekeeper:** Use the `--fail-under-time` flag in your pipelines to break the build if a secret can be cracked faster than your threshold (e.g., `1y`, `30d`). Also supports standard `json` and `sarif` outputs for tooling.
 
@@ -98,8 +98,8 @@ echo "P@ssw0rd123!" | brtc
 
 | Flag                | Default    | Description                                                                                                                                         |
 | ------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--hw`              | `rtx-4090` | The attacker's hardware profile (`rtx-4090`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`) |
-| `--algo`            | `bcrypt`   | The target hash algorithm (`md5`, `sha256`, `bcrypt`, `argon2id`)                                                                                   |
+| `--hw`              | `rtx-4090` | The attacker's hardware profile (`rtx-5090`, `rtx-4090`, `rx-7900xtx`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`) |
+| `--algo`            | `bcrypt`   | The target hash algorithm (`md5`, `sha1`, `sha256`, `ntlm`, `bcrypt`, `argon2id`)                                                                   |
 | `--cost`            | `10`       | Work factor (bcrypt) or time iterations (argon2id)                                                                                                  |
 | `--memory`          | `""`       | Argon2id memory parameter (e.g. `64m`, `128m`, `1g`). Defaults to the profile baseline (64MB)                                                       |
 | `--guesses`         | `""`       | Override entropy with an external guess count from zxcvbn or similar (e.g. `1e10`, `12345`). Makes the password argument optional                   |
