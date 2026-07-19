@@ -50,6 +50,7 @@ var (
 	workFactor      int
 	memoryStr       string
 	externalGuesses string
+	useZxcvbn       bool
 	budget          string
 	outputFormat    string
 	failUnderTime   string
@@ -126,15 +127,27 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		// 1. Combinations: from --guesses (e.g. zxcvbn output) or computed entropy.
+		if useZxcvbn && externalGuesses != "" {
+			return fmt.Errorf("--zxcvbn and --guesses are mutually exclusive (both set the guess count)")
+		}
+		if useZxcvbn && password == "" {
+			return fmt.Errorf("--zxcvbn needs a password to analyze; pass it as an argument or via stdin")
+		}
+
+		// 1. Combinations: from --zxcvbn (built-in pattern estimate), --guesses
+		// (external estimate), or the naive R^L entropy computed from the charset.
 		var entropy calc.EntropyResult
-		if externalGuesses != "" {
+		switch {
+		case useZxcvbn:
+			g, _ := calc.Zxcvbn(password)
+			entropy = calc.FromGuesses(g, password)
+		case externalGuesses != "":
 			g, err := calc.ParseGuesses(externalGuesses)
 			if err != nil {
 				return fmt.Errorf("invalid guesses format: %v", err)
 			}
 			entropy = calc.FromGuesses(g, password)
-		} else {
+		default:
 			entropy = calc.Analyze(password)
 		}
 
@@ -178,9 +191,13 @@ var rootCmd = &cobra.Command{
 		// 4. Cloud Cost
 		costUSD := cost.TotalCost(hwProfile, ttc)
 
-		// 5. Budget logic (optional). Skipped when --guesses is in use because
-		// MaxLengthForBudget needs a charset assumption that external estimates
-		// do not provide.
+		// haveCharset is false for external estimates (--guesses, --zxcvbn),
+		// which report a guess count with no character-class assumption. The
+		// budget and recommendation math both need a charset, so they are
+		// skipped in that case rather than emitting a misleading "0 chars".
+		haveCharset := entropy.CharSpace > 1
+
+		// 5. Budget logic (optional).
 		budgetVal, err := cost.ParseBudget(budget)
 		if err != nil {
 			return fmt.Errorf("invalid budget format: %v", err)
@@ -188,7 +205,7 @@ var rootCmd = &cobra.Command{
 
 		var budgetMaxChars *int
 		var budgetUnlimited bool
-		if budgetVal > 0 && externalGuesses == "" {
+		if budgetVal > 0 && haveCharset {
 			maxChars := cost.MaxLengthForBudget(budgetVal, hwProfile, algo, workFactor, memoryMB, entropy.CharSpace)
 			// Owned hardware has no rental cost, so no budget bounds the
 			// attacker. Surface that as a flag rather than leaking the 999
@@ -212,7 +229,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 		var recommendedChars int
-		if reqSecs > 0 && externalGuesses == "" {
+		if reqSecs > 0 && haveCharset {
 			recommendedChars = cost.MinLengthForTime(reqSecs, hwProfile, algo, workFactor, memoryMB, entropy.CharSpace)
 		}
 
@@ -280,6 +297,7 @@ func init() {
 	rootCmd.Flags().IntVar(&workFactor, "cost", 10, "Work factor (bcrypt) or time iterations (argon2id)")
 	rootCmd.Flags().StringVar(&memoryStr, "memory", "", "Argon2id memory parameter (e.g. 64m, 128m, 1g). Defaults to the profile baseline (64MB)")
 	rootCmd.Flags().StringVar(&externalGuesses, "guesses", "", "Override entropy with an external guess count from zxcvbn or similar (e.g. 1e10, 12345)")
+	rootCmd.Flags().BoolVar(&useZxcvbn, "zxcvbn", false, "Estimate strength with the built-in zxcvbn pattern analyzer instead of naive R^L entropy (catches dictionary words, keyboard walks, l33t)")
 	rootCmd.Flags().StringVar(&budget, "budget", "", "Attacker's budget in USD (e.g., 1000usd)")
 	rootCmd.Flags().StringVarP(&outputFormat, "output", "o", "tui", "Output format (tui, table, json, sarif)")
 	rootCmd.Flags().StringVar(&failUnderTime, "fail-under-time", "", "Gatekeeper threshold for CI/CD (e.g., 1y, 30d)")
