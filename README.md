@@ -9,8 +9,8 @@
 
 > **brtc is a cost calculator, not a strength meter.**
 > It converts an entropy/guess count into an offline-attack price tag in USD against a chosen GPU or cloud profile.
-> It does **not** detect dictionary words, leetspeak, keyboard walks, or other patterns — `P@ssw0rd!` looks "strong" by raw entropy alone but is trivially guessable in practice.
-> For real-world strength evaluation, **pair brtc with [zxcvbn](https://github.com/dropbox/zxcvbn)** (or [zxcvbn-ts](https://github.com/zxcvbn-ts/zxcvbn)) and feed its `guesses` value into brtc via `--guesses` (coming in a follow-up release).
+> By default it does **not** detect dictionary words, leetspeak, keyboard walks, or other patterns — `P@ssw0rd!` looks "strong" by raw entropy alone but is trivially guessable in practice.
+> For real-world strength, pass **`--zxcvbn`** to swap the naive estimator for the built-in [zxcvbn](https://github.com/dropbox/zxcvbn) pattern analyzer, and **`--hibp`** to check the password against Have I Been Pwned (a breached password is `COMPROMISED` no matter its entropy). You can still feed an external guess count via `--guesses`.
 
 **brtc (Brute-force Cost)** is a CLI tool that translates abstract concepts like "entropy" into harsh reality: **exactly how much time and cloud infrastructure money it takes to crack a password.**
 
@@ -25,7 +25,8 @@ Instead of just telling you a password is "Weak" or "Strong", `brtc` pits your s
 - **Financial Cost Visualization:** Uses current spot prices for AWS or GPU providers to calculate the total USD cost to crack your hash.
 - **Hardware Simulation:** Select between various physical and cloud profiles (`rtx-5090`, `rtx-4090`, `rx-7900xtx`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`) to see how hardware scales the threat. Baselines are 2026 hashcat numbers (RTX 5090 Blackwell is the current top cracker).
 - **Hash Algorithms:** Simulates the braking power of `md5`, `sha1`, `sha256`, `ntlm`, `bcrypt`, and `argon2id` with adjustable work factors.
-- **Terminal UI:** Beautiful, color-coded output built on [Lipgloss](https://github.com/charmbracelet/lipgloss).
+- **Pattern-Aware Strength:** Pass `--zxcvbn` to estimate real guessability with the built-in [zxcvbn](https://github.com/dropbox/zxcvbn) analyzer instead of naive `R^L` entropy, or `--hibp` to flag passwords found in Have I Been Pwned via privacy-preserving k-anonymity.
+- **Terminal UI:** Color-coded output with a one-line verdict banner and an entropy gauge, built on [Lipgloss](https://github.com/charmbracelet/lipgloss).
 - **CI/CD Gatekeeper:** Use the `--fail-under-time` flag in your pipelines to break the build if a secret can be cracked faster than your threshold (e.g., `1y`, `30d`). Also supports standard `json` and `sarif` outputs for tooling.
 
 ## Why This Matters (Online vs. Offline Attacks)
@@ -141,11 +142,14 @@ See, at a glance, how the same password fares against every attacker — from a 
 
 ```bash
 brtc --all-hw --algo bcrypt --cost 12 "P@ssw0rd!"
-# HARDWARE         HASHRATE   TIME TO CRACK     COST
-# aws-p5.48xlarge  19531 H/s  465140.4 years    $162985188189.47
-# rtx-4090         781 H/s    11628509.4 years  $30559722785.53
-# ...              ...        ...               owned
+# HARDWARE         HASHRATE  TIME TO CRACK         COST
+# aws-p5.48xlarge  9.4 kH/s  969.0 thousand years  $339.6 billion
+# rtx-5090         2.4 kH/s  3.8 million years     $10.0 billion
+# rtx-4090         1.4 kH/s  6.3 million years     $19.4 billion
+# ...              ...       ...                   owned
 ```
+
+Note the cost column: the `aws-p5.48xlarge` (8x H100) box is the fastest here but by far the most expensive per crack. Password cracking is integer/bitwise work, not tensor work, so datacenter AI GPUs are poor value — a rented consumer RTX 5090 at ~$0.30/hr cracks the same hash for a fraction of the price. Baselines are 2026 hashcat numbers.
 
 Add `-o json` for a machine-readable array.
 
@@ -159,14 +163,27 @@ brtc --fail-under-time 1m "short"
 
 When `--fail-under-time` is set, `brtc` also reports the **minimum password length** needed to survive that threshold on the chosen hardware (shown as `Recommended Len` in the TUI and `recommended_chars` in JSON) — turning the gate into actionable advice.
 
-#### Pairing with zxcvbn (recommended)
+#### Pattern-aware strength (`--zxcvbn`) and breach check (`--hibp`)
 
-`brtc`'s built-in entropy estimator is naive — it counts character classes and treats every position as independent. `P@ssw0rd!` looks "strong" to it but is trivially guessable to a real attacker. For accurate strength evaluation, run [zxcvbn](https://github.com/dropbox/zxcvbn) (or [zxcvbn-ts](https://github.com/zxcvbn-ts/zxcvbn)) first, then feed its `guesses` field into `brtc`:
+`brtc`'s default estimator is naive — it counts character classes and treats every position as independent, so `P@ssw0rd!` looks "strong" to it. Pass `--zxcvbn` to use the built-in pattern analyzer instead, which recognizes the dictionary word, l33t substitutions, and structure:
+
+```bash
+brtc --algo bcrypt "P@ssw0rd!"           # naive R^L: ~1.6 million years
+brtc --algo bcrypt --zxcvbn "P@ssw0rd!"  # zxcvbn: Less than a second
+```
+
+Add `--hibp` to check the password against Have I Been Pwned. Only the first 5 hex characters of the SHA-1 hash are sent (k-anonymity), so the password never leaves your machine. A breached password reads `COMPROMISED` regardless of entropy:
+
+```bash
+brtc --hibp "password"
+# HIBP Breaches: found 52372427 times (COMPROMISED)
+```
+
+You can also feed an external guess count (e.g. from a JS/TS zxcvbn build) via `--guesses`:
 
 ```bash
 guesses=$(zxcvbn-cli "P@ssw0rd!" --json | jq -r .guesses)
-brtc --guesses "$guesses" --algo bcrypt --cost 12 --hw aws-p5.48xlarge
-# Combinations come from zxcvbn; brtc converts them into time + USD.
+brtc --guesses "$guesses" --algo bcrypt --cost 12
 ```
 
 #### Argon2id Memory Sweep
