@@ -41,11 +41,11 @@ func renderMatrixTable(out io.Writer, rows []MatrixRow) error {
 
 	lines := []string{"HARDWARE\tHASHRATE\tTIME TO CRACK\tCOST"}
 	for _, r := range rows {
-		cost := fmt.Sprintf("$%.2f", r.CostUSD)
+		cost := FormatCost(r.CostUSD)
 		if r.CostPerHourUSD <= 0 {
 			cost = "owned" // no rental cost
 		}
-		lines = append(lines, fmt.Sprintf("%s\t%.0f H/s\t%s\t%s", r.Profile, r.HashRate, FormatDuration(r.TimeToCrackSec), cost))
+		lines = append(lines, fmt.Sprintf("%s\t%s\t%s\t%s", r.Profile, FormatHashRate(r.HashRate), FormatDuration(r.TimeToCrackSec), cost))
 	}
 	if _, err := io.WriteString(w, strings.Join(lines, "\n")+"\n"); err != nil {
 		return err

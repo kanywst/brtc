@@ -35,9 +35,9 @@ func renderTable(out io.Writer, data OutputData) error {
 		[2]string{"Entropy", fmt.Sprintf("%.2f bits", data.Entropy)},
 		[2]string{"Combinations", combinations},
 		[2]string{"Target Hardware", data.Hardware},
-		[2]string{"Hashrate", fmt.Sprintf("%.0f H/s", data.HashRate)},
+		[2]string{"Hashrate", FormatHashRate(data.HashRate)},
 		[2]string{"Time to Crack", FormatDuration(data.TimeToCrackSec)},
-		[2]string{"Estimated Cost", fmt.Sprintf("$%.2f USD", data.CostUSD)},
+		[2]string{"Estimated Cost", FormatCost(data.CostUSD) + " USD"},
 	)
 	if data.BudgetUSD > 0 {
 		rows = append(rows, [2]string{"Budget Target", fmt.Sprintf("$%.2f USD", data.BudgetUSD)})

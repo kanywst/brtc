@@ -143,23 +143,3 @@ func PrintSARIF(data OutputData) error {
 	fmt.Println(sarif)
 	return nil
 }
-
-// FormatDuration is a helper to turn seconds into human-readable duration strings.
-func FormatDuration(seconds float64) string {
-	if seconds < 1 {
-		return "Less than a second"
-	}
-	if seconds < 60 {
-		return fmt.Sprintf("%.1f seconds", seconds)
-	}
-	if seconds < 3600 {
-		return fmt.Sprintf("%.1f minutes", seconds/60)
-	}
-	if seconds < 86400 {
-		return fmt.Sprintf("%.1f hours", seconds/3600)
-	}
-	if seconds < 31536000 {
-		return fmt.Sprintf("%.1f days", seconds/86400)
-	}
-	return fmt.Sprintf("%.1f years", seconds/31536000)
-}
