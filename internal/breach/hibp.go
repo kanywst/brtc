@@ -20,6 +20,11 @@ import (
 // It is a var (not a const) so tests can point Check at a stub server.
 var apiBase = "https://api.pwnedpasswords.com/range/"
 
+// defaultClient is reused across calls so the HTTP transport can pool
+// connections; constructing a fresh http.Client per call defeats keep-alive
+// and leaks idle dialer resources.
+var defaultClient = &http.Client{Timeout: 10 * time.Second}
+
 // hashParts returns the uppercase SHA-1 of the password split into the 5-char
 // range prefix (sent to the API) and the remaining suffix (matched locally).
 // HIBP stores and returns hashes in uppercase hex.
@@ -73,7 +78,7 @@ type Result struct {
 // sent in full.
 func Check(ctx context.Context, password string, client *http.Client) (Result, error) {
 	if client == nil {
-		client = &http.Client{Timeout: 10 * time.Second}
+		client = defaultClient
 	}
 	prefix, suffix := hashParts(password)
 
@@ -90,7 +95,12 @@ func Check(ctx context.Context, password string, client *http.Client) (Result, e
 	if err != nil {
 		return Result{}, err
 	}
-	defer func() { _ = resp.Body.Close() }()
+	// Drain any unread body before closing so the transport can reuse the
+	// connection: countInBody returns early on a match, leaving bytes behind.
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return Result{}, fmt.Errorf("hibp: unexpected status %d", resp.StatusCode)
