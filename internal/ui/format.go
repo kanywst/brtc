@@ -114,7 +114,10 @@ func FormatCost(usd float64) string {
 		return "effectively unbounded"
 	}
 	switch {
-	case usd <= 0:
+	case math.IsNaN(usd) || usd <= 0:
+		// NaN reaches here from owned hardware (Inf crack time * $0/hr); a free
+		// rig genuinely costs nothing. Guarding it also keeps NaN from slipping
+		// past every comparison into "$NaN".
 		return "$0.00"
 	case usd < 0.01:
 		return "< $0.01"
@@ -127,6 +130,13 @@ func FormatCost(usd float64) string {
 	default:
 		return "$" + humanScale(usd)
 	}
+}
+
+// FormatCount renders an integer with thousands separators (e.g. "9,659,365").
+// Breach counts are exact integers, so they use this rather than humanScale,
+// which would print a lossy "9.7 million" or a stray "42.0" for small values.
+func FormatCount(n int) string {
+	return addThousands(fmt.Sprintf("%d", n))
 }
 
 // addThousands inserts commas into the integer part of a plain decimal string

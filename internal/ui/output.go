@@ -3,6 +3,7 @@ package ui
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 )
@@ -51,11 +52,34 @@ func (d OutputData) MarshalJSON() ([]byte, error) {
 		s := d.Combinations.String()
 		combinations = &s
 	}
+	// encoding/json rejects Inf/NaN float64 values with an error, so an
+	// astronomically long password (whose crack time overflows to +Inf) would
+	// make `-o json` fail entirely. Sanitize the float fields to finite values
+	// first: +Inf -> the largest finite float64, NaN -> 0.
+	safe := alias(d)
+	safe.Entropy = sanitizeFloat(safe.Entropy)
+	safe.HashRate = sanitizeFloat(safe.HashRate)
+	safe.TimeToCrackSec = sanitizeFloat(safe.TimeToCrackSec)
+	safe.CostUSD = sanitizeFloat(safe.CostUSD)
 	return json.Marshal(struct {
 		alias
 		Combinations *string `json:"combinations"`
 		EntropyModel string  `json:"entropy_model"`
-	}{alias: alias(d), Combinations: combinations, EntropyModel: EntropyModelNote(d)})
+	}{alias: safe, Combinations: combinations, EntropyModel: EntropyModelNote(d)})
+}
+
+// sanitizeFloat maps a possibly non-finite float64 to a JSON-marshalable one:
+// +Inf becomes the largest finite float64, and NaN/-Inf become 0.
+func sanitizeFloat(f float64) float64 {
+	switch {
+	case math.IsNaN(f):
+		return 0
+	case math.IsInf(f, 1):
+		return math.MaxFloat64
+	case math.IsInf(f, -1):
+		return 0
+	}
+	return f
 }
 
 // UnmarshalJSON is the inverse of MarshalJSON: it reads combinations back into

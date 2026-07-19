@@ -152,3 +152,11 @@ func TestProfilesAreComplete(t *testing.T) {
 		})
 	}
 }
+
+func TestTotalCost_OwnedHardwareIsZeroEvenForInfiniteTime(t *testing.T) {
+	// Owned hardware (cost_per_hour_usd 0) must return 0, not Inf*0 = NaN,
+	// for an astronomically long password whose crack time overflows to +Inf.
+	if got := TotalCost("mac-m3", math.Inf(1)); got != 0 {
+		t.Errorf("TotalCost(mac-m3, +Inf) = %v, want 0", got)
+	}
+}
