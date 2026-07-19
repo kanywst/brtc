@@ -53,6 +53,13 @@ func renderTable(out io.Writer, data OutputData) error {
 	if data.RecommendedChars > 0 {
 		rows = append(rows, [2]string{"Recommended Len", fmt.Sprintf(">= %d chars", data.RecommendedChars)})
 	}
+	if data.BreachChecked {
+		if data.BreachCount > 0 {
+			rows = append(rows, [2]string{"HIBP Breaches", fmt.Sprintf("found %d times (COMPROMISED)", data.BreachCount)})
+		} else {
+			rows = append(rows, [2]string{"HIBP Breaches", "not found in the corpus"})
+		}
+	}
 
 	lines := []string{"PROPERTY\tVALUE"}
 	for _, r := range rows {

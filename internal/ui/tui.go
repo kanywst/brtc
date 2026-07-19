@@ -133,6 +133,16 @@ func (m model) View() string {
 		}
 	}
 
+	if m.data.BreachChecked {
+		rows = append(rows, "")
+		if m.data.BreachCount > 0 {
+			breach := criticalStyle.Render(fmt.Sprintf("⚠ found %s times — change it", humanScale(float64(m.data.BreachCount))))
+			rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("HIBP Breaches:"), breach))
+		} else {
+			rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("HIBP Breaches:"), safeStyle.Render("not found in the corpus")))
+		}
+	}
+
 	rows = append(rows, "", noteStyle.Render(EntropyModelNote(m.data)))
 
 	content := strings.Join(rows, "\n")
@@ -174,6 +184,13 @@ func renderEntropyBar(entropy float64) string {
 // the tool distilled into "how bad is it", coloured red/yellow/green. It keys
 // off crack time (the metric a human feels) and appends the price tag.
 func renderVerdict(data OutputData) string {
+	// A breached password is game over no matter how high its entropy is:
+	// the attacker looks it up instead of cracking it. This overrides the
+	// time-based verdict.
+	if data.BreachChecked && data.BreachCount > 0 {
+		return criticalStyle.Render(fmt.Sprintf("VERDICT: COMPROMISED — found in %s known breaches, crack time is irrelevant",
+			humanScale(float64(data.BreachCount))))
+	}
 	cost := FormatCost(data.CostUSD)
 	time := FormatDuration(data.TimeToCrackSec)
 	switch {
