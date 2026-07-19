@@ -3,6 +3,7 @@ package calc
 import (
 	"math"
 	"math/big"
+	"strings"
 	"testing"
 )
 
@@ -53,5 +54,20 @@ func TestGuessesToBigInt(t *testing.T) {
 	}
 	if got := guessesToBigInt(12345.9); got.Cmp(big.NewInt(12345)) != 0 {
 		t.Errorf("finite should truncate to 12345, got %s", got)
+	}
+}
+
+func TestZxcvbn_LongInputIsTruncatedAndFast(t *testing.T) {
+	// A megabyte of repetition must not hang: the input is capped at
+	// maxZxcvbnRunes before zxcvbn's super-linear matching runs.
+	long := strings.Repeat("aA1!", 4096) // 16384 runes
+	g, _ := Zxcvbn(long)
+	if g == nil || g.Sign() < 0 {
+		t.Errorf("long input should yield a non-negative guess count, got %v", g)
+	}
+	// Truncating to 256 runes must match analyzing the pre-truncated string.
+	same, _ := Zxcvbn(long[:256*1]) // first 256 bytes; ASCII so 256 runes
+	if g.Cmp(same) != 0 {
+		t.Errorf("truncated long input (%s) should match 256-char input (%s)", g, same)
 	}
 }
