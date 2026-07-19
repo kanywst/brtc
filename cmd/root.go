@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/kanywst/brtc/internal/breach"
 	"github.com/kanywst/brtc/internal/calc"
 	"github.com/kanywst/brtc/internal/cost"
 	"github.com/kanywst/brtc/internal/ui"
@@ -51,6 +52,7 @@ var (
 	memoryStr       string
 	externalGuesses string
 	useZxcvbn       bool
+	useHIBP         bool
 	budget          string
 	outputFormat    string
 	failUnderTime   string
@@ -233,6 +235,24 @@ var rootCmd = &cobra.Command{
 			recommendedChars = cost.MinLengthForTime(reqSecs, hwProfile, algo, workFactor, memoryMB, entropy.CharSpace)
 		}
 
+		// Optional Have I Been Pwned check. Network-dependent and opt-in; a
+		// lookup failure is a warning, not a fatal error, so the rest of the
+		// (offline) analysis still prints.
+		var breachChecked bool
+		var breachCount int
+		if useHIBP {
+			if password == "" {
+				return fmt.Errorf("--hibp needs a password to check; pass it as an argument or via stdin")
+			}
+			res, herr := breach.Check(cmd.Context(), password, nil)
+			if herr != nil {
+				cmd.PrintErrf("warning: HIBP check failed: %v\n", herr)
+			} else {
+				breachChecked = true
+				breachCount = res.Count
+			}
+		}
+
 		// Compile output data
 		outData := ui.OutputData{
 			PasswordLength:   entropy.Length,
@@ -250,6 +270,8 @@ var rootCmd = &cobra.Command{
 			BudgetMaxChars:   budgetMaxChars,
 			BudgetUnlimited:  budgetUnlimited,
 			RecommendedChars: recommendedChars,
+			BreachChecked:    breachChecked,
+			BreachCount:      breachCount,
 		}
 
 		// Present output. IsCygwinTerminal covers MSYS/Git Bash on Windows,
@@ -298,6 +320,7 @@ func init() {
 	rootCmd.Flags().StringVar(&memoryStr, "memory", "", "Argon2id memory parameter (e.g. 64m, 128m, 1g). Defaults to the profile baseline (64MB)")
 	rootCmd.Flags().StringVar(&externalGuesses, "guesses", "", "Override entropy with an external guess count from zxcvbn or similar (e.g. 1e10, 12345)")
 	rootCmd.Flags().BoolVar(&useZxcvbn, "zxcvbn", false, "Estimate strength with the built-in zxcvbn pattern analyzer instead of naive R^L entropy (catches dictionary words, keyboard walks, l33t)")
+	rootCmd.Flags().BoolVar(&useHIBP, "hibp", false, "Check the password against Have I Been Pwned via k-anonymity (only the SHA-1 prefix is sent; requires network)")
 	rootCmd.Flags().StringVar(&budget, "budget", "", "Attacker's budget in USD (e.g., 1000usd)")
 	rootCmd.Flags().StringVarP(&outputFormat, "output", "o", "tui", "Output format (tui, table, json, sarif)")
 	rootCmd.Flags().StringVar(&failUnderTime, "fail-under-time", "", "Gatekeeper threshold for CI/CD (e.g., 1y, 30d)")

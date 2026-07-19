@@ -30,6 +30,13 @@ type OutputData struct {
 	// RecommendedChars is the minimum password length that would survive the
 	// --fail-under-time threshold on this hardware. 0 means not requested.
 	RecommendedChars int `json:"recommended_chars,omitempty"`
+	// BreachChecked is true when --hibp queried Have I Been Pwned, so a
+	// BreachCount of 0 ("checked, clean") is distinct from "not checked".
+	BreachChecked bool `json:"breach_checked,omitempty"`
+	// BreachCount is how many times the password appears in the HIBP corpus.
+	// Any positive value means the password is compromised regardless of its
+	// entropy — crack time is effectively zero.
+	BreachCount int `json:"breach_count,omitempty"`
 }
 
 // MarshalJSON emits combinations as a JSON string rather than a number.

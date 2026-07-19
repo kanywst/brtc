@@ -104,6 +104,7 @@ echo "P@ssw0rd123!" | brtc
 | `--memory`          | `""`       | Argon2id memory parameter (e.g. `64m`, `128m`, `1g`). Defaults to the profile baseline (64MB)                                                       |
 | `--guesses`         | `""`       | Override entropy with an external guess count from zxcvbn or similar (e.g. `1e10`, `12345`). Makes the password argument optional                   |
 | `--zxcvbn`          | `false`    | Use the built-in zxcvbn pattern analyzer instead of naive `R^L` entropy — catches dictionary words, keyboard walks, and l33t (`P@ssw0rd!` → seconds) |
+| `--hibp`            | `false`    | Check the password against Have I Been Pwned via k-anonymity (only the SHA-1 prefix is sent; requires network). A breached password reads `COMPROMISED` regardless of entropy |
 | `--budget`          | `""`       | Set an attacker budget (e.g. `1000usd`) to see the max characters they can afford to crack                                                          |
 | `--output`, `-o`    | `tui`      | Output format (`tui`, `table`, `json`, `sarif`)                                                                                                     |
 | `--fail-under-time` | `""`       | CI/CD threshold to fail the run (e.g., `1y`, `30d`, `12h`)                                                                                          |

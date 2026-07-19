@@ -46,3 +46,23 @@ func TestView_ShowsVerdictAndBar(t *testing.T) {
 		t.Errorf("view should include the entropy gauge, got:\n%s", out)
 	}
 }
+
+func TestRenderVerdict_BreachOverridesTime(t *testing.T) {
+	d := sampleData()
+	d.TimeToCrackSec = 100 * 31536000 // would otherwise read RESISTANT
+	d.BreachChecked = true
+	d.BreachCount = 5000
+	got := renderVerdict(d)
+	if !strings.Contains(got, "COMPROMISED") {
+		t.Errorf("a breached password must read COMPROMISED regardless of crack time, got %q", got)
+	}
+}
+
+func TestView_ShowsBreachRow(t *testing.T) {
+	d := sampleData()
+	d.BreachChecked = true
+	d.BreachCount = 42
+	if out := initialModel(d).View(); !strings.Contains(out, "HIBP Breaches") {
+		t.Errorf("view should show the HIBP breach row when checked, got:\n%s", out)
+	}
+}
