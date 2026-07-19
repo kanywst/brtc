@@ -85,3 +85,15 @@ func TestAddThousands(t *testing.T) {
 		}
 	}
 }
+
+func TestEntropyModelNote(t *testing.T) {
+	naive := sampleData() // CharSpace 94 -> naive R^L estimate
+	if !strings.Contains(EntropyModelNote(naive), "RANDOM") {
+		t.Errorf("naive note should flag the random-password assumption, got %q", EntropyModelNote(naive))
+	}
+	external := sampleData()
+	external.CharSpace = 0 // signals a --guesses / zxcvbn estimate
+	if !strings.Contains(EntropyModelNote(external), "external") {
+		t.Errorf("external note should mention the external estimate, got %q", EntropyModelNote(external))
+	}
+}
