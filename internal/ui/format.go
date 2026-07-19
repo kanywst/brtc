@@ -59,6 +59,10 @@ func humanScale(x float64) string {
 // universe, anchors it against that figure so the number stays legible.
 func FormatDuration(seconds float64) string {
 	switch {
+	case math.IsNaN(seconds):
+		// An uncomputable crack time should never read as safe; treat it as
+		// the worst case rather than falling through to "NaN years".
+		return "Less than a second"
 	case math.IsInf(seconds, 1):
 		return "effectively forever"
 	case seconds < 1:
@@ -143,6 +147,11 @@ func FormatCount(n int) string {
 // like "6345.60" -> "6,345.60". It expects a non-negative, already-formatted
 // number and leaves any fractional part untouched.
 func addThousands(s string) string {
+	// Handle a leading sign so a negative never becomes "-,123,456". Current
+	// callers pass non-negative values, but keep the helper robust.
+	if len(s) > 0 && (s[0] == '-' || s[0] == '+') {
+		return s[:1] + addThousands(s[1:])
+	}
 	intPart, frac := s, ""
 	if dot := strings.IndexByte(s, '.'); dot >= 0 {
 		intPart, frac = s[:dot], s[dot:]

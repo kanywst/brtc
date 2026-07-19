@@ -199,6 +199,10 @@ func renderVerdict(data OutputData) string {
 	cost := FormatCost(data.CostUSD)
 	time := FormatDuration(data.TimeToCrackSec)
 	switch {
+	case math.IsNaN(data.TimeToCrackSec):
+		// NaN fails every comparison below and would slip into the green
+		// RESISTANT default — a false sense of security. Flag it instead.
+		return criticalStyle.Render("VERDICT: UNKNOWN — crack time could not be calculated")
 	case data.TimeToCrackSec < 86400: // under a day
 		return criticalStyle.Render(fmt.Sprintf("VERDICT: TRIVIALLY CRACKABLE — %s for %s", time, cost))
 	case data.TimeToCrackSec < 31536000: // under a year
