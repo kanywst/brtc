@@ -32,8 +32,13 @@ func hashParts(password string) (prefix, suffix string) {
 // countInBody scans an HIBP range response for the given suffix and returns
 // its breach count. The body is newline-separated "SUFFIX:COUNT" lines; the
 // padding entries HIBP injects (count 0) are handled naturally since a real
-// match carries a positive count. Found reports whether the suffix appeared.
-func countInBody(body io.Reader, suffix string) (count int, found bool) {
+// match carries a positive count. found reports whether the suffix appeared.
+//
+// A read/scan error (e.g. a truncated response) is returned rather than
+// swallowed: treating a partial body as "not found" would tell the user a
+// compromised password is clean, so the caller must be able to distinguish
+// "confirmed absent" from "could not finish reading".
+func countInBody(body io.Reader, suffix string) (count int, found bool, err error) {
 	sc := bufio.NewScanner(body)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
@@ -41,16 +46,16 @@ func countInBody(body io.Reader, suffix string) (count int, found bool) {
 		if !ok || !strings.EqualFold(suf, suffix) {
 			continue
 		}
-		n, err := strconv.Atoi(strings.TrimSpace(cnt))
-		if err != nil {
-			return 0, false
+		n, aerr := strconv.Atoi(strings.TrimSpace(cnt))
+		if aerr != nil {
+			return 0, false, aerr
 		}
-		return n, true
+		return n, true, nil
 	}
-	// A scan error (e.g. a truncated response) means we cannot assert the
-	// password is absent, so report not-found and let the caller decide.
-	_ = sc.Err()
-	return 0, false
+	if serr := sc.Err(); serr != nil {
+		return 0, false, serr
+	}
+	return 0, false, nil
 }
 
 // Result is the outcome of a breach check.
@@ -91,6 +96,9 @@ func Check(ctx context.Context, password string, client *http.Client) (Result, e
 		return Result{}, fmt.Errorf("hibp: unexpected status %d", resp.StatusCode)
 	}
 
-	count, found := countInBody(resp.Body, suffix)
+	count, found, err := countInBody(resp.Body, suffix)
+	if err != nil {
+		return Result{}, err
+	}
 	return Result{Count: count, Pwned: found && count > 0}, nil
 }
