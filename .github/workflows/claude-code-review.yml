@@ -1,0 +1,87 @@
+name: Claude code review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+# A rapid re-push should supersede the in-flight review rather than post twice.
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # Advisory, not a gate. A reviewer that cannot reach the API (expired token, empty
+    # credit balance, provider outage) says nothing about the change under review, so it
+    # must not be what blocks a merge. Read the job log when the review is missing.
+    continue-on-error: true
+    # Dependabot bumps are lockfile-only, so reviewing them just burns tokens.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
+    steps:
+      # Keeps the job green (and silent) until the token is added to the repo secrets,
+      # instead of turning every PR red with an auth failure. A pull request from a fork
+      # cannot see the secret either, so this covers that case too.
+      - name: Check for a token
+        id: key
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: echo "present=${CLAUDE_CODE_OAUTH_TOKEN:+true}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v7
+        if: steps.key.outputs.present == 'true'
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        if: steps.key.outputs.present == 'true'
+        with:
+          # `claude setup-token` issues an OAuth token (sk-ant-oat01-...) that runs on the
+          # Claude subscription. It is not an API key and is rejected by the x-api-key
+          # header, so it has to go through this input rather than anthropic_api_key.
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            Review this pull request. The PR branch is already checked out in the working
+            directory.
+
+            brtc converts a password's guess count into the time and USD cost of an offline attack
+            against a chosen GPU or cloud profile. It is deliberately a cost calculator rather than a
+            strength meter. Optional flags swap in zxcvbn for pattern-aware guessing and check Have I
+            Been Pwned. Code lives in internal/{breach,calc,cost,ui}, and brtc-action wraps it as a CI
+            gate.
+
+            Focus on:
+            - The HIBP lookup is k-anonymous: only the first five characters of the SHA-1 leave the
+              machine. Any change that sends more of the hash, or the password itself, to any host is
+              a privacy break and the most serious thing that can go wrong here.
+            - Passwords must not reach logs, error messages, telemetry, or the JSON and SARIF output.
+            - --fail-under-time makes exit codes an API. A pipeline breaks quietly if the code for
+              "cracked too fast" changes, and worse, a gate that stops failing lets weak secrets
+              through.
+            - JSON and SARIF are consumed by other tools, so a renamed or removed field is a breaking
+              change even though nothing in this repo notices.
+            - The hardware profiles and hash rates are calibrated to 2026 hashcat baselines. Changing
+              a constant silently changes every user's verdict, so it needs a stated source.
+            - Cost and time arithmetic runs into overflow and precision at the extremes: argon2id on
+              a Raspberry Pi, or a very long passphrase. Check the boundaries rather than the typical
+              case.
+
+            Report only what you can point at in the diff. Do not restate what the change
+            does, do not praise it, and skip nits that golangci-lint would already catch. If the
+            change looks sound, say so in one line rather than inventing findings.
+
+            Use `gh pr comment` for top-level feedback.
+            Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`)
+            to point at specific lines.
+            Only post GitHub comments, do not return the review as a message.
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
