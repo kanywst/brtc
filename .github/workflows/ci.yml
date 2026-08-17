@@ -17,6 +17,11 @@ jobs:
       uses: actions/setup-go@v7
       with:
         go-version: '1.25'
+        # Without this, setup-go reuses whatever 1.25.x the runner image ships,
+        # which lags the security releases. govulncheck then reports stdlib
+        # vulnerabilities that are already fixed upstream and CI fails on a
+        # stale toolchain rather than on anything in the diff.
+        check-latest: true
         cache: true
 
     - name: Install dependencies
