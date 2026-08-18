@@ -24,6 +24,7 @@ func runBRTC(t *testing.T, args ...string) error {
 		hwProfile, algo, workFactor, memoryStr = "rtx-4090", "bcrypt", 10, ""
 		externalGuesses, useZxcvbn, useHIBP = "", false, false
 		budget, outputFormat, failUnderTime, allHW = "", "tui", "", false
+		failUnderEntropy, failOnBreach = 0, false
 	})
 	return rootCmd.Execute()
 }
@@ -38,6 +39,16 @@ func TestFlagInteractions(t *testing.T) {
 		{"all-hw rejects hibp", []string{"pw", "--all-hw", "--hibp"}, "--hibp cannot be combined with --all-hw"},
 		{"all-hw rejects budget", []string{"pw", "--all-hw", "--budget", "100usd"}, "--budget cannot be combined with --all-hw"},
 		{"all-hw rejects sarif", []string{"pw", "--all-hw", "-o", "sarif"}, "sarif output is not supported"},
+		{"all-hw rejects fail-under-entropy", []string{"pw", "--all-hw", "--fail-under-entropy", "60"}, "--fail-under-entropy cannot be combined with --all-hw"},
+		{"all-hw rejects fail-on-breach", []string{"pw", "--all-hw", "--fail-on-breach"}, "--fail-on-breach cannot be combined with --all-hw"},
+		{"negative fail-under-entropy is rejected", []string{"pw", "--fail-under-entropy", "-1"}, "must be a finite, non-negative number of bits"},
+		// NaN would fail every comparison in checkGates, silently disabling the
+		// gate; Inf would fail every password. Both are rejected up front.
+		{"NaN fail-under-entropy is rejected", []string{"pw", "--fail-under-entropy", "NaN"}, "must be a finite, non-negative number of bits"},
+		{"Inf fail-under-entropy is rejected", []string{"pw", "--fail-under-entropy", "Inf"}, "must be a finite, non-negative number of bits"},
+		{"fail-on-breach needs a password", []string{"--guesses", "1e5", "--fail-on-breach"}, "--fail-on-breach needs a password"},
+		{"fail-under-entropy fails a weak password", []string{"pw", "-o", "json", "--fail-under-entropy", "60"}, "estimated entropy"},
+		{"fail-under-entropy passes a strong password", []string{"cX7#qLm2!vTr9$Wz", "-o", "json", "--fail-under-entropy", "60"}, ""},
 		{"zxcvbn alone succeeds", []string{"pw", "--zxcvbn", "-o", "json"}, ""},
 	}
 	for _, tt := range tests {

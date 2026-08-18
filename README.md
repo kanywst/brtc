@@ -27,7 +27,7 @@ Instead of just telling you a password is "Weak" or "Strong", `brtc` pits your s
 - **Hash Algorithms:** Simulates the braking power of `md5`, `sha1`, `sha256`, `ntlm`, `bcrypt`, and `argon2id` with adjustable work factors.
 - **Pattern-Aware Strength:** Pass `--zxcvbn` to estimate real guessability with the built-in [zxcvbn](https://github.com/dropbox/zxcvbn) analyzer instead of naive `R^L` entropy, or `--hibp` to flag passwords found in Have I Been Pwned via privacy-preserving k-anonymity.
 - **Terminal UI:** Color-coded output with a one-line verdict banner and an entropy gauge, built on [Lipgloss](https://github.com/charmbracelet/lipgloss).
-- **CI/CD Gatekeeper:** Use the `--fail-under-time` flag in your pipelines to break the build if a secret can be cracked faster than your threshold (e.g., `1y`, `30d`). Also supports standard `json` and `sarif` outputs for tooling.
+- **CI/CD Gatekeeper:** Break the build on `--fail-under-time` (cracked faster than e.g. `1y`, `30d`), `--fail-under-entropy` (below e.g. `60` bits), or `--fail-on-breach` (found in Have I Been Pwned) — alone or combined. Also supports standard `json` and `sarif` outputs for tooling.
 
 ## Why This Matters (Online vs. Offline Attacks)
 
@@ -108,8 +108,10 @@ echo "P@ssw0rd123!" | brtc
 | `--hibp`            | `false`    | Check the password against Have I Been Pwned via k-anonymity (only the SHA-1 prefix is sent; requires network). A breached password reads `COMPROMISED` regardless of entropy |
 | `--budget`          | `""`       | Set an attacker budget (e.g. `1000usd`) to see the max characters they can afford to crack                                                          |
 | `--output`, `-o`    | `tui`      | Output format (`tui`, `table`, `json`, `sarif`)                                                                                                     |
-| `--fail-under-time` | `""`       | CI/CD threshold to fail the run (e.g., `1y`, `30d`, `12h`)                                                                                          |
-| `--all-hw`          | `false`    | Compare the password across every hardware profile at once (not combinable with `--budget`, `--fail-under-time`, or `-o sarif`)                     |
+| `--fail-under-time` | `""`       | CI/CD gate: fail the run if the password cracks faster than this (e.g., `1y`, `30d`, `12h`)                                                          |
+| `--fail-under-entropy` | `0`     | CI/CD gate: fail the run if the estimated entropy is below this many bits (e.g. `60`, `80`)                                                          |
+| `--fail-on-breach`  | `false`    | CI/CD gate: fail the run if the password appears in Have I Been Pwned. Implies `--hibp`, and a lookup that cannot be completed also fails the gate    |
+| `--all-hw`          | `false`    | Compare the password across every hardware profile at once (not combinable with `--budget`, the `--fail-*` gates, or `-o sarif`)                     |
 | `--version`         | -          | Print the binary version and exit                                                                                                                   |
 
 ### Example Outputs
@@ -155,11 +157,25 @@ Add `-o json` for a machine-readable array.
 
 #### CI Gatekeeper Example
 
+There are three independent gates. Use any one alone, or combine them — the run fails on the first one that trips:
+
 ```bash
-brtc --fail-under-time 1m "short"
-# Error: gatekeeper failed: estimated crack time (31.7 minutes) is less than required (1.0 months)
+brtc --fail-under-time 1d "short"
+# Error: gatekeeper failed: estimated crack time (17.2 minutes) is less than required (1.0 days)
+# Exit code 1
+
+brtc --fail-under-entropy 60 "short"
+# Error: gatekeeper failed: estimated entropy (23.5 bits) is less than required (60.0 bits)
+# Exit code 1
+
+brtc --fail-on-breach "P@ssw0rd"
+# Error: gatekeeper failed: password found in 6421042 known breaches
 # Exit code 1
 ```
+
+`--fail-on-breach` turns on the Have I Been Pwned lookup by itself, so you don't have to remember `--hibp` alongside it. `--hibp` on its own stays **report-only** — it prints `COMPROMISED` but leaves the exit code at 0 — so adding the breach check to an existing command never silently changes its exit status. A breach also fails a bare `--fail-under-time` gate, as it always has.
+
+Because a gate that could not be evaluated must not report a pass, `--fail-on-breach` treats a failed HIBP lookup (network down, API error) as a failure, unlike plain `--hibp`, which only warns.
 
 When `--fail-under-time` is set, `brtc` also reports the **minimum password length** needed to survive that threshold on the chosen hardware (shown as `Recommended Len` in the TUI and `recommended_chars` in JSON) — turning the gate into actionable advice.
 
