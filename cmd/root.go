@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"os"
 	"runtime/debug"
@@ -46,17 +47,19 @@ func resolveOutputFormat(requested string, explicit, stdoutIsTTY bool) string {
 }
 
 var (
-	hwProfile       string
-	algo            string
-	workFactor      int
-	memoryStr       string
-	externalGuesses string
-	useZxcvbn       bool
-	useHIBP         bool
-	budget          string
-	outputFormat    string
-	failUnderTime   string
-	allHW           bool
+	hwProfile        string
+	algo             string
+	workFactor       int
+	memoryStr        string
+	externalGuesses  string
+	useZxcvbn        bool
+	useHIBP          bool
+	budget           string
+	outputFormat     string
+	failUnderTime    string
+	failUnderEntropy float64
+	failOnBreach     bool
+	allHW            bool
 )
 
 // buildMatrix runs the given combination count against every known hardware
@@ -84,6 +87,43 @@ func buildMatrix(combinations *big.Int, algo string, workFactor, memoryMB int) [
 		return rows[i].Profile < rows[j].Profile
 	})
 	return rows
+}
+
+// gates is the input to the CI gatekeeper. A zero MinEntropy or ReqSecs means
+// the corresponding flag was not set.
+type gates struct {
+	FailOnBreach bool
+	BreachCount  int
+	BreachErr    error // the HIBP lookup failed; count is unknown
+	MinEntropy   float64
+	EntropyBits  float64
+	ReqSecs      float64
+	TimeToCrack  float64
+}
+
+// checkGates returns the first gate failure, or nil when every enabled gate
+// passes. Gates are independent and evaluated most-damning-first.
+func checkGates(g gates) error {
+	// A gate that could not be evaluated must not report a pass.
+	if g.FailOnBreach && g.BreachErr != nil {
+		return fmt.Errorf("gatekeeper failed: HIBP check could not be completed: %w", g.BreachErr)
+	}
+	// A breach also fails a bare --fail-under-time, as it did before
+	// --fail-on-breach existed.
+	if (g.FailOnBreach || g.ReqSecs > 0) && g.BreachCount > 0 {
+		return fmt.Errorf("gatekeeper failed: password found in %d known breaches", g.BreachCount)
+	}
+	// NaN fails rather than passes, matching how the verdict treats a
+	// non-finite crack time as unsafe.
+	if g.MinEntropy > 0 && (math.IsNaN(g.EntropyBits) || g.EntropyBits < g.MinEntropy) {
+		return fmt.Errorf("gatekeeper failed: estimated entropy (%.1f bits) is less than required (%.1f bits)",
+			g.EntropyBits, g.MinEntropy)
+	}
+	if g.ReqSecs > 0 && g.TimeToCrack < g.ReqSecs {
+		return fmt.Errorf("gatekeeper failed: estimated crack time (%s) is less than required (%s)",
+			ui.FormatDuration(g.TimeToCrack), ui.FormatDuration(g.ReqSecs))
+	}
+	return nil
 }
 
 var rootCmd = &cobra.Command{
@@ -135,6 +175,9 @@ var rootCmd = &cobra.Command{
 		if useZxcvbn && password == "" {
 			return fmt.Errorf("--zxcvbn needs a password to analyze; pass it as an argument or via stdin")
 		}
+		if failUnderEntropy < 0 {
+			return fmt.Errorf("--fail-under-entropy must be a positive number of bits, got %g", failUnderEntropy)
+		}
 
 		// 1. Combinations: from --zxcvbn (built-in pattern estimate), --guesses
 		// (external estimate), or the naive R^L entropy computed from the charset.
@@ -174,6 +217,10 @@ var rootCmd = &cobra.Command{
 				return fmt.Errorf("--budget cannot be combined with --all-hw")
 			case failUnderTime != "":
 				return fmt.Errorf("--fail-under-time cannot be combined with --all-hw")
+			case failUnderEntropy > 0:
+				return fmt.Errorf("--fail-under-entropy cannot be combined with --all-hw")
+			case failOnBreach:
+				return fmt.Errorf("--fail-on-breach cannot be combined with --all-hw")
 			case strings.ToLower(outputFormat) == "sarif":
 				return fmt.Errorf("sarif output is not supported with --all-hw")
 			case useHIBP:
@@ -237,18 +284,30 @@ var rootCmd = &cobra.Command{
 			recommendedChars = cost.MinLengthForTime(reqSecs, hwProfile, algo, workFactor, memoryMB, entropy.CharSpace)
 		}
 
-		// Optional Have I Been Pwned check. Network-dependent and opt-in; a
-		// lookup failure is a warning, not a fatal error, so the rest of the
-		// (offline) analysis still prints.
+		// Optional Have I Been Pwned check. Network-dependent and opt-in;
+		// --fail-on-breach turns the lookup on itself rather than silently
+		// passing when --hibp was forgotten. A lookup failure is not fatal
+		// here — the offline analysis still prints and checkGates decides
+		// whether it sinks the run.
 		var breachChecked bool
 		var breachCount int
-		if useHIBP {
+		var breachErr error
+		if useHIBP || failOnBreach {
 			if password == "" {
-				return fmt.Errorf("--hibp needs a password to check; pass it as an argument or via stdin")
+				flag := "--hibp"
+				if failOnBreach {
+					flag = "--fail-on-breach"
+				}
+				return fmt.Errorf("%s needs a password to check; pass it as an argument or via stdin", flag)
 			}
 			res, herr := breach.Check(cmd.Context(), password, nil)
 			if herr != nil {
-				cmd.PrintErrf("warning: HIBP check failed: %v\n", herr)
+				breachErr = herr
+				// Under --fail-on-breach the gate error carries this, so
+				// warning here too would print the same thing twice.
+				if !failOnBreach {
+					cmd.PrintErrf("warning: HIBP check failed: %v\n", herr)
+				}
 			} else {
 				breachChecked = true
 				breachCount = res.Count
@@ -300,21 +359,15 @@ var rootCmd = &cobra.Command{
 			return errOut
 		}
 
-		// Gatekeeper logic. A known-breached password is an unconditional
-		// failure of the gate: no crack-time margin matters if the plaintext is
-		// already in a public corpus. This keeps the exit code consistent with
-		// the COMPROMISED verdict the output just printed.
-		if reqSecs > 0 && breachChecked && breachCount > 0 {
-			return fmt.Errorf("gatekeeper failed: password found in %d known breaches", breachCount)
-		}
-		// fail-under-time: reqSecs was parsed and validated above; a zero value
-		// means the flag was not set.
-		if reqSecs > 0 && ttc < reqSecs {
-			return fmt.Errorf("gatekeeper failed: estimated crack time (%s) is less than required (%s)",
-				ui.FormatDuration(ttc), ui.FormatDuration(reqSecs))
-		}
-
-		return nil
+		return checkGates(gates{
+			FailOnBreach: failOnBreach,
+			BreachCount:  breachCount,
+			BreachErr:    breachErr,
+			MinEntropy:   failUnderEntropy,
+			EntropyBits:  entropy.Entropy,
+			ReqSecs:      reqSecs,
+			TimeToCrack:  ttc,
+		})
 	},
 }
 
@@ -333,5 +386,7 @@ func init() {
 	rootCmd.Flags().StringVar(&budget, "budget", "", "Attacker's budget in USD (e.g., 1000usd)")
 	rootCmd.Flags().StringVarP(&outputFormat, "output", "o", "tui", "Output format (tui, table, json, sarif)")
 	rootCmd.Flags().StringVar(&failUnderTime, "fail-under-time", "", "Gatekeeper threshold for CI/CD (e.g., 1y, 30d)")
-	rootCmd.Flags().BoolVar(&allHW, "all-hw", false, "Compare the password across every hardware profile (not combinable with --budget, --fail-under-time, or -o sarif)")
+	rootCmd.Flags().Float64Var(&failUnderEntropy, "fail-under-entropy", 0, "Gatekeeper threshold in bits of entropy (e.g. 60, 80)")
+	rootCmd.Flags().BoolVar(&failOnBreach, "fail-on-breach", false, "Gatekeeper: fail if the password appears in Have I Been Pwned (implies --hibp; a failed lookup also fails the gate)")
+	rootCmd.Flags().BoolVar(&allHW, "all-hw", false, "Compare the password across every hardware profile (not combinable with --budget, the --fail-* gates, or -o sarif)")
 }
