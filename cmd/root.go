@@ -175,8 +175,11 @@ var rootCmd = &cobra.Command{
 		if useZxcvbn && password == "" {
 			return fmt.Errorf("--zxcvbn needs a password to analyze; pass it as an argument or via stdin")
 		}
-		if failUnderEntropy < 0 {
-			return fmt.Errorf("--fail-under-entropy must be a positive number of bits, got %g", failUnderEntropy)
+		// NaN and ±Inf parse fine as a float64 but make a nonsense threshold:
+		// NaN in particular would fail every comparison in checkGates and turn
+		// the gate into a silent no-op.
+		if math.IsNaN(failUnderEntropy) || math.IsInf(failUnderEntropy, 0) || failUnderEntropy < 0 {
+			return fmt.Errorf("--fail-under-entropy must be a finite, non-negative number of bits, got %g", failUnderEntropy)
 		}
 
 		// 1. Combinations: from --zxcvbn (built-in pattern estimate), --guesses
