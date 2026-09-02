@@ -21,6 +21,16 @@ on:
 permissions:
   contents: read
 
+# Serialize runs per ref so two gif regenerations never reach the push step
+# at the same time. Without this, both render a (possibly differing) binary
+# and the loser's rebase conflicts on assets/demo.gif, which git cannot
+# 3-way-merge. Queued rather than cancel-in-progress: a run for an older
+# commit still yields a valid gif, and cancelling it would leave main
+# carrying whichever gif happened to win the race.
+concurrency:
+  group: vhs-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   generate:
     name: Render demo.gif
@@ -83,17 +93,51 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add assets/demo.gif
           git commit -m "chore(demo): regenerate VHS gif [skip ci]"
-          # Another merge can land between checkout and this push, which
-          # rejects it as non-fast-forward and leaves main red over a gif.
-          # (Two merges 60 seconds apart did exactly that.) The commit only
-          # touches assets/demo.gif, so rebasing onto the new tip and
-          # retrying is always safe.
+          # A merge that does not match this workflow's path filters (a
+          # docs-only one, say) can still land between checkout and this
+          # push and reject it as non-fast-forward. The concurrency group
+          # above rules out the other VHS run as the cause, so the new tip
+          # does not touch assets/demo.gif and the rebase applies cleanly.
           for attempt in 1 2 3; do
-            if git push; then
+            if push_err=$(git push 2>&1); then
               exit 0
             fi
+            echo "$push_err"
+            case "$push_err" in
+              # Both reasons appear on the ref-status line, e.g.
+              #   ! [rejected]  main -> main (fetch first)
+              # Git's longer "behind its remote counterpart" advice is not
+              # matched: it is wrapped across two hint: lines, so it never
+              # occurs as a contiguous substring.
+              *"non-fast-forward"*|*"fetch first"*) ;;
+              *)
+                # Branch protection, a revoked token, anything else: retrying
+                # cannot fix it, and three more rebases only add noise.
+                echo "push failed for a reason a retry cannot fix" >&2
+                exit 1
+                ;;
+            esac
             echo "push rejected (attempt $attempt), rebasing onto origin/main"
-            git pull --rebase origin main
+            if ! pull_err=$(git pull --rebase origin main 2>&1); then
+              echo "$pull_err"
+              # A pull can fail without any conflict at all — a network
+              # blip, a rate limit, an auth hiccup. Those must not report
+              # success, or a stale gif on main looks like a green run that
+              # blames a concurrent job. Only unmerged paths mean a real
+              # conflict.
+              if git ls-files --unmerged | grep -q .; then
+                git rebase --abort || true
+                # Reachable only if the concurrency guard is bypassed. The
+                # conflict means another run already pushed a regenerated
+                # gif, so main is current either way — say so and stop
+                # rather than failing the branch over a demo gif.
+                echo "rebase conflicted on assets/demo.gif; a concurrent run already pushed one"
+                exit 0
+              fi
+              git rebase --abort 2>/dev/null || true
+              echo "could not rebase onto origin/main" >&2
+              exit 1
+            fi
           done
           echo "could not push the regenerated gif after 3 attempts" >&2
           exit 1
