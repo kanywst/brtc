@@ -31,6 +31,17 @@ func TestView_FitsInATerminal(t *testing.T) {
 			d.CharSpace = 0 // selects the shorter note
 			return d
 		}(),
+		// The verdict line carries both the duration and the cost, so an
+		// astronomical crack time makes it the widest row in the box — wider
+		// than the note. This is the case that stayed over the ceiling when
+		// only the note was wrapped.
+		"astronomical crack time": func() OutputData {
+			d := sampleData()
+			d.Entropy = 220
+			d.TimeToCrackSec = 1e30
+			d.CostUSD = 9.9e33
+			return d
+		}(),
 		"every optional section": func() OutputData {
 			d := sampleData()
 			d.RecommendedChars = 16
