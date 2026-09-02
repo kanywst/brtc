@@ -83,4 +83,17 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add assets/demo.gif
           git commit -m "chore(demo): regenerate VHS gif [skip ci]"
-          git push
+          # Another merge can land between checkout and this push, which
+          # rejects it as non-fast-forward and leaves main red over a gif.
+          # (Two merges 60 seconds apart did exactly that.) The commit only
+          # touches assets/demo.gif, so rebasing onto the new tip and
+          # retrying is always safe.
+          for attempt in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt), rebasing onto origin/main"
+            git pull --rebase origin main
+          done
+          echo "could not push the regenerated gif after 3 attempts" >&2
+          exit 1
