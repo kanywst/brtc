@@ -29,7 +29,10 @@ jobs:
         uses: anchore/sbom-action/download-syft@v0
 
       - name: Install cosign (keyless signing)
-        uses: sigstore/cosign-installer@v4
+        # sigstore stopped publishing a floating major tag after v3, so this
+        # has to be pinned to an exact release. `@v4` does not resolve and
+        # fails the job before any step runs.
+        uses: sigstore/cosign-installer@v4.1.2
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
