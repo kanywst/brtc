@@ -3,7 +3,10 @@ Output assets/demo.gif
 Set Shell "bash"
 Set FontSize 16
 Set Width 1200
-Set Height 600
+# 24 rows for the first command's box, 27 for the second, plus the typed
+# command and the prompt after it. At 600 the top border and the title
+# line scrolled off the top of the frame.
+Set Height 700
 Set TypingSpeed 0.1
 Set Theme "Dracula"
 Set Margin 20
