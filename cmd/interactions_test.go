@@ -50,6 +50,11 @@ func TestFlagInteractions(t *testing.T) {
 		{"fail-under-entropy fails a weak password", []string{"pw", "-o", "json", "--fail-under-entropy", "60"}, "estimated entropy"},
 		{"fail-under-entropy passes a strong password", []string{"cX7#qLm2!vTr9$Wz", "-o", "json", "--fail-under-entropy", "60"}, ""},
 		{"zxcvbn alone succeeds", []string{"pw", "--zxcvbn", "-o", "json"}, ""},
+		// A typo must not fall back to rtx-4090: slower hardware means a
+		// longer crack time, which turns --fail-under-time into a false pass.
+		{"unknown hw profile is rejected", []string{"pw", "-o", "json", "--hw", "rtx-4900"}, `unknown hardware profile "rtx-4900"`},
+		{"unknown hw error lists the known profiles", []string{"pw", "-o", "json", "--hw", "h100"}, "known profiles: aws-p5.48xlarge,"},
+		{"a known hw profile is accepted case-insensitively", []string{"pw", "-o", "json", "--hw", "RTX-5090"}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
