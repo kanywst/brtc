@@ -53,6 +53,12 @@ var (
 	noteStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4")).Italic(true)
 )
 
+// minNoteWidth is the floor for wrapping the entropy-model note. The data
+// rows are normally wider than this; the floor only matters if they ever
+// get much narrower, where wrapping the sentence to the box would leave
+// one or two words per line.
+const minNoteWidth = 60
+
 type model struct {
 	data OutputData
 }
@@ -144,7 +150,17 @@ func (m model) View() string {
 		}
 	}
 
-	rows = append(rows, "", noteStyle.Render(EntropyModelNote(m.data)))
+	// The note is a full sentence on one line, so it was the widest thing in
+	// the box and lipgloss sized the border to it — around 170 columns, wider
+	// than most terminals. The terminal then wrapped the text but not the
+	// border, which left the box visibly broken (the README demo showed it).
+	// Wrap the note to the width the data rows already need instead, so it
+	// never drives the box, with a floor so it does not shred into fragments.
+	noteWidth := lipgloss.Width(strings.Join(rows, "\n"))
+	if noteWidth < minNoteWidth {
+		noteWidth = minNoteWidth
+	}
+	rows = append(rows, "", noteStyle.Width(noteWidth).Render(EntropyModelNote(m.data)))
 
 	content := strings.Join(rows, "\n")
 	return boxStyle.Render(content) + "\n\n"
