@@ -3,6 +3,13 @@ name: CI pipeline
 on:
   push:
     branches: [ "main" ]
+    # The VHS workflow pushes a regenerated gif to main and there is nothing
+    # for CI to check in it. Skipping it here is what lets that commit drop
+    # its [skip ci] marker, which silently killed a release: a tag landing on
+    # a commit whose message carries the marker skips every workflow for the
+    # tag push too, including this repo's release.
+    paths-ignore:
+      - 'assets/demo.gif'
   pull_request:
     branches: [ "main" ]
 
