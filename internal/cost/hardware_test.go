@@ -2,6 +2,7 @@ package cost
 
 import (
 	"math"
+	"sort"
 	"testing"
 )
 
@@ -112,9 +113,9 @@ func TestTotalCost(t *testing.T) {
 }
 
 func TestProfilesContainAdvertisedNames(t *testing.T) {
-	// Names exposed via the --hw flag and README must all be in the map;
-	// otherwise users get a silent fallback to rtx-4090 (a much faster GPU)
-	// and their cost numbers become a lie.
+	// Names documented in the README table must all be in the map. The --hw
+	// help and the unknown-profile error are generated from ProfileNames, so
+	// they cannot drift, but the README is still hand-written.
 	advertised := []string{
 		"rtx-5090", "rtx-4090", "rx-7900xtx", "rtx-3060", "gtx-1080ti",
 		"mac-m3", "mac-m3-max",
@@ -123,6 +124,28 @@ func TestProfilesContainAdvertisedNames(t *testing.T) {
 	for _, name := range advertised {
 		if _, ok := Profiles[name]; !ok {
 			t.Errorf("hardware profile %q is advertised but missing from Profiles", name)
+		}
+	}
+
+	// And the reverse: a profile added to the YAML without a README row would
+	// be accepted by --hw but invisible in the docs.
+	if len(Profiles) != len(advertised) {
+		t.Errorf("Profiles has %d entries but %d are advertised; update the README table and this list",
+			len(Profiles), len(advertised))
+	}
+}
+
+func TestProfileNames(t *testing.T) {
+	names := ProfileNames()
+	if len(names) != len(Profiles) {
+		t.Fatalf("ProfileNames() returned %d names, want %d", len(names), len(Profiles))
+	}
+	if !sort.StringsAreSorted(names) {
+		t.Errorf("ProfileNames() = %v, want alphabetical order", names)
+	}
+	for _, name := range names {
+		if _, ok := Profiles[name]; !ok {
+			t.Errorf("ProfileNames() returned %q, which is not a key in Profiles", name)
 		}
 	}
 }

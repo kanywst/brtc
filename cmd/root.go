@@ -199,12 +199,16 @@ var rootCmd = &cobra.Command{
 			entropy = calc.Analyze(password)
 		}
 
-		// Resolve --hw to a known profile up front. An unknown value silently
-		// falls back to rtx-4090, so warn and report the resolved name rather
-		// than echoing the bogus input back in the results.
+		// Resolve --hw to a known profile up front. A typo used to warn and
+		// fall back to rtx-4090, which is the same silent-downgrade failure
+		// the --all-hw checks below reject: a misspelled profile lands on
+		// slower hardware, the crack time comes out longer, and
+		// --fail-under-time reports a pass for a password that should have
+		// failed the gate. Reject it instead.
 		resolvedHW, known := cost.ResolveProfileName(hwProfile)
 		if !known {
-			cmd.PrintErrf("warning: unknown hardware profile %q, falling back to %s\n", hwProfile, resolvedHW)
+			return fmt.Errorf("unknown hardware profile %q (known profiles: %s)",
+				hwProfile, strings.Join(cost.ProfileNames(), ", "))
 		}
 		hwProfile = resolvedHW
 
@@ -379,7 +383,10 @@ func Execute() error {
 }
 
 func init() {
-	rootCmd.Flags().StringVar(&hwProfile, "hw", "rtx-4090", "Attacker's hardware profile (rtx-5090, rtx-4090, rx-7900xtx, rtx-3060, gtx-1080ti, mac-m3-max, mac-m3, cpu-standard, aws-p5.48xlarge, raspberry-pi-4)")
+	// Built from hashrates.yaml rather than hand-listed, so adding a profile
+	// cannot leave the help advertising a stale set.
+	rootCmd.Flags().StringVar(&hwProfile, "hw", "rtx-4090",
+		"Attacker's hardware profile ("+strings.Join(cost.ProfileNames(), ", ")+")")
 	rootCmd.Flags().StringVar(&algo, "algo", "bcrypt", "Server-side hash algorithm (md5, sha1, sha256, ntlm, bcrypt, argon2id)")
 	rootCmd.Flags().IntVar(&workFactor, "cost", 10, "Work factor (bcrypt) or time iterations (argon2id)")
 	rootCmd.Flags().StringVar(&memoryStr, "memory", "", "Argon2id memory parameter (e.g. 64m, 128m, 1g). Defaults to the profile baseline (64MB)")

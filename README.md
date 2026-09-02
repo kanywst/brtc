@@ -99,7 +99,7 @@ echo "P@ssw0rd123!" | brtc
 
 | Flag                | Default    | Description                                                                                                                                         |
 | ------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--hw`              | `rtx-4090` | The attacker's hardware profile (`rtx-5090`, `rtx-4090`, `rx-7900xtx`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`) |
+| `--hw`              | `rtx-4090` | The attacker's hardware profile (`rtx-5090`, `rtx-4090`, `rx-7900xtx`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`). An unrecognized name is an error, not a fallback — a typo would otherwise model slower hardware and let a `--fail-*` gate pass |
 | `--algo`            | `bcrypt`   | The target hash algorithm (`md5`, `sha1`, `sha256`, `ntlm`, `bcrypt`, `argon2id`)                                                                   |
 | `--cost`            | `10`       | Work factor (bcrypt) or time iterations (argon2id)                                                                                                  |
 | `--memory`          | `""`       | Argon2id memory parameter (e.g. `64m`, `128m`, `1g`). Defaults to the profile baseline (64MB)                                                       |

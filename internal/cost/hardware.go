@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -27,9 +28,12 @@ type profilesFile struct {
 // Profiles is populated at init time from the embedded hashrates.yaml.
 var Profiles map[string]HardwareProfile
 
-// fallbackProfile is used when the caller passes an --hw value not
-// present in Profiles. Kept as a constant rather than rtx-4090 magic
-// strings so the fallback target is greppable.
+// fallbackProfile is the profile lookupProfile returns for a key that is
+// not in Profiles. Kept as a constant rather than rtx-4090 magic strings
+// so the fallback target is greppable.
+//
+// The CLI rejects an unknown --hw before it reaches lookupProfile (see
+// cmd/root.go), so this only backstops direct callers of the package.
 const fallbackProfile = "rtx-4090"
 
 func init() {
@@ -63,6 +67,19 @@ func lookupProfile(hw string) HardwareProfile {
 		return p
 	}
 	return Profiles[fallbackProfile]
+}
+
+// ProfileNames returns every known --hw value, sorted alphabetically for a
+// stable order. The CLI builds both its --hw help string and its
+// unknown-profile error from this, so the advertised set is derived from
+// hashrates.yaml rather than duplicated alongside it.
+func ProfileNames() []string {
+	names := make([]string, 0, len(Profiles))
+	for name := range Profiles {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // ResolveProfileName maps a user-supplied --hw value to the canonical
