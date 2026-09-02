@@ -104,7 +104,12 @@ jobs:
             fi
             echo "$push_err"
             case "$push_err" in
-              *"non-fast-forward"*|*"fetch first"*|*"behind its remote"*) ;;
+              # Both reasons appear on the ref-status line, e.g.
+              #   ! [rejected]  main -> main (fetch first)
+              # Git's longer "behind its remote counterpart" advice is not
+              # matched: it is wrapped across two hint: lines, so it never
+              # occurs as a contiguous substring.
+              *"non-fast-forward"*|*"fetch first"*) ;;
               *)
                 # Branch protection, a revoked token, anything else: retrying
                 # cannot fix it, and three more rebases only add noise.
@@ -113,14 +118,25 @@ jobs:
                 ;;
             esac
             echo "push rejected (attempt $attempt), rebasing onto origin/main"
-            if ! git pull --rebase origin main; then
-              git rebase --abort || true
-              # Reachable only if the concurrency guard is bypassed. A
-              # conflict here means another run already pushed a
-              # regenerated gif, so main is current either way — say so
-              # and stop rather than failing the branch over a demo gif.
-              echo "rebase conflicted on assets/demo.gif; a concurrent run already pushed one"
-              exit 0
+            if ! pull_err=$(git pull --rebase origin main 2>&1); then
+              echo "$pull_err"
+              # A pull can fail without any conflict at all — a network
+              # blip, a rate limit, an auth hiccup. Those must not report
+              # success, or a stale gif on main looks like a green run that
+              # blames a concurrent job. Only unmerged paths mean a real
+              # conflict.
+              if git ls-files --unmerged | grep -q .; then
+                git rebase --abort || true
+                # Reachable only if the concurrency guard is bypassed. The
+                # conflict means another run already pushed a regenerated
+                # gif, so main is current either way — say so and stop
+                # rather than failing the branch over a demo gif.
+                echo "rebase conflicted on assets/demo.gif; a concurrent run already pushed one"
+                exit 0
+              fi
+              git rebase --abort 2>/dev/null || true
+              echo "could not rebase onto origin/main" >&2
+              exit 1
             fi
           done
           echo "could not push the regenerated gif after 3 attempts" >&2
