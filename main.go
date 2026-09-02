@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kanywst/brtc/cmd"
+	"github.com/kanywst/brtc/v2/cmd"
 )
 
 func main() {

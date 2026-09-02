@@ -3,7 +3,7 @@
 **Stop guessing password strength. Calculate the actual bill.**
 
 [![Build Status](https://github.com/kanywst/brtc/workflows/CI%20pipeline/badge.svg)](https://github.com/kanywst/brtc/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/kanywst/brtc)](https://goreportcard.com/report/github.com/kanywst/brtc)
+[![Go Report Card](https://goreportcard.com/badge/github.com/kanywst/brtc/v2)](https://goreportcard.com/report/github.com/kanywst/brtc/v2)
 
 ---
 
@@ -78,7 +78,7 @@ At that point, the only things standing between the attacker and your users' pla
 Assuming you have Go 1.25+ installed:
 
 ```bash
-go install github.com/kanywst/brtc@latest
+go install github.com/kanywst/brtc/v2@latest
 ```
 
 ## Usage

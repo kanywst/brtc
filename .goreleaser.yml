@@ -20,7 +20,7 @@ builds:
       - CGO_ENABLED=0
     ldflags:
       - -s -w
-      - -X github.com/kanywst/brtc/cmd.version={{ .Version }}
+      - -X github.com/kanywst/brtc/v2/cmd.version={{ .Version }}
 
 archives:
   - formats:
