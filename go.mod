@@ -1,4 +1,4 @@
-module github.com/kanywst/brtc
+module github.com/kanywst/brtc/v2
 
 go 1.25.0
 

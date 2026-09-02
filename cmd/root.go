@@ -10,16 +10,16 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/kanywst/brtc/internal/breach"
-	"github.com/kanywst/brtc/internal/calc"
-	"github.com/kanywst/brtc/internal/cost"
-	"github.com/kanywst/brtc/internal/ui"
+	"github.com/kanywst/brtc/v2/internal/breach"
+	"github.com/kanywst/brtc/v2/internal/calc"
+	"github.com/kanywst/brtc/v2/internal/cost"
+	"github.com/kanywst/brtc/v2/internal/ui"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
 
 // version is the binary version, overridden at release time via -ldflags
-// (-X github.com/kanywst/brtc/cmd.version=...), see .goreleaser.yml.
+// (-X github.com/kanywst/brtc/v2/cmd.version=...), see .goreleaser.yml.
 var version = "dev"
 
 // getVersion returns the ldflags-injected version when set, otherwise the
