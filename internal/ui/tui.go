@@ -53,6 +53,23 @@ var (
 	noteStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#6272A4")).Italic(true)
 )
 
+// wrapStyle re-flows a row that would otherwise stretch the box. It carries
+// no colour of its own, so a row that arrives already styled keeps its own.
+var wrapStyle = lipgloss.NewStyle().Width(maxContentWidth)
+
+const (
+	// minNoteWidth is the floor for wrapping the entropy-model note. The data
+	// rows are normally wider than this; the floor only matters if they ever
+	// get much narrower, where wrapping the sentence to the box would leave
+	// one or two words per line.
+	minNoteWidth = 60
+
+	// maxContentWidth is the ceiling for any row inside the box. boxStyle adds
+	// 8 columns of padding, 2 of border, and 2 of left margin, so the rendered
+	// box stays within 100 columns and fits a standard terminal.
+	maxContentWidth = 88
+)
+
 type model struct {
 	data OutputData
 }
@@ -144,7 +161,31 @@ func (m model) View() string {
 		}
 	}
 
-	rows = append(rows, "", noteStyle.Render(EntropyModelNote(m.data)))
+	// Nothing here may drive the border past a normal terminal. lipgloss
+	// sizes the box to its widest line, and the terminal then wraps the text
+	// but not the border, which leaves the box visibly broken (the README
+	// demo showed it). Two rows can get long enough to do that: the note,
+	// which is a full sentence, and a verdict carrying an astronomical crack
+	// time and cost ("9.9 decillion years (7.2 sextillion x the age of the
+	// universe), $9.9 decillion"). Wrapping every row that exceeds the cap
+	// covers both, and any future row that grows.
+	for i, row := range rows {
+		if lipgloss.Width(row) > maxContentWidth {
+			rows[i] = wrapStyle.Render(row)
+		}
+	}
+
+	// Wrap the note to the width the data rows already need, so it never
+	// drives the box on its own. The floor keeps it from shredding into
+	// fragments if those rows are narrow; the cap applies when they are not.
+	noteWidth := lipgloss.Width(strings.Join(rows, "\n"))
+	if noteWidth < minNoteWidth {
+		noteWidth = minNoteWidth
+	}
+	if noteWidth > maxContentWidth {
+		noteWidth = maxContentWidth
+	}
+	rows = append(rows, "", noteStyle.Width(noteWidth).Render(EntropyModelNote(m.data)))
 
 	content := strings.Join(rows, "\n")
 	return boxStyle.Render(content) + "\n\n"
