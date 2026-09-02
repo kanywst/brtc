@@ -92,7 +92,12 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add assets/demo.gif
-          git commit -m "chore(demo): regenerate VHS gif [skip ci]"
+          # No [skip ci] marker: GitHub applies it to the head commit of any
+          # push, so a release tag landing on this commit skips the release
+          # workflow and the tag silently produces nothing. CI ignores
+          # assets/demo.gif via paths-ignore instead, and this workflow's own
+          # path filter does not match the gif, so nothing re-triggers.
+          git commit -m "chore(demo): regenerate VHS gif"
           # A merge that does not match this workflow's path filters (a
           # docs-only one, say) can still land between checkout and this
           # push and reject it as non-fast-forward. The concurrency group
