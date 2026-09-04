@@ -3,7 +3,9 @@
 **Stop guessing password strength. Calculate the actual bill.**
 
 [![Build Status](https://github.com/kanywst/brtc/workflows/CI%20pipeline/badge.svg)](https://github.com/kanywst/brtc/actions)
-[![Go Report Card](https://goreportcard.com/badge/github.com/kanywst/brtc/v2)](https://goreportcard.com/report/github.com/kanywst/brtc/v2)
+[![Release](https://img.shields.io/github/v/release/kanywst/brtc?sort=semver)](https://github.com/kanywst/brtc/releases)
+[![Go Reference](https://pkg.go.dev/badge/github.com/kanywst/brtc/v2.svg)](https://pkg.go.dev/github.com/kanywst/brtc/v2)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ---
 
