@@ -44,6 +44,25 @@ homebrew_casks:
   - name: brtc
     binaries:
       - brtc
+    # Without this, `brew install kanywst/tap/brtc` produces a binary that
+    # deletes itself the first time it is run. Homebrew stages the cask's
+    # tarball with com.apple.quarantine set; the binary is not signed with an
+    # Apple Developer ID, so on first exec Gatekeeper kills it AND removes the
+    # file, leaving /opt/homebrew/bin/brtc dangling at a path that no longer
+    # exists. `brew install` still reports success, so nothing looks wrong
+    # until the user runs it. Reproduced on macOS 26 / Homebrew 5, arm64:
+    # present before exec, gone after, with LICENSE and README.md left behind.
+    #
+    # The real fix is signing and notarising with an Apple Developer ID, which
+    # costs $99/year. Until then, strip the quarantine bit on install, which is
+    # what GoReleaser's own documentation recommends for this case and what the
+    # sibling y509 cask in the same tap already does.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/brtc"]
+          end
     homepage: "https://github.com/kanywst/brtc"
     description: "Cost calculator for offline password brute-force attacks"
     repository:
