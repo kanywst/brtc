@@ -57,12 +57,21 @@ homebrew_casks:
     # costs $99/year. Until then, strip the quarantine bit on install, which is
     # what GoReleaser's own documentation recommends for this case and what the
     # sibling y509 cask in the same tap already does.
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/brtc"]
-          end
+    #
+    # It goes through custom_block rather than goreleaser's own `hooks:` option
+    # because `hooks:` can only emit the legacy Ruby `postflight do` block,
+    # which Homebrew has deprecated - it warns on every brew invocation, once
+    # per cask in the tap. custom_block is the only way to emit the declarative
+    # replacement, `postflight_steps`, from here. The braces are escaped because
+    # goreleaser templates this value and {{staged_path}} is a Homebrew
+    # install-time token, not a Go template field.
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ "{{" }}staged_path{{ "}}" }}/brtc"]
+        end
+      end
+
     homepage: "https://github.com/kanywst/brtc"
     description: "Cost calculator for offline password brute-force attacks"
     repository:
