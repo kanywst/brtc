@@ -226,6 +226,44 @@ var rootCmd = &cobra.Command{
 		}
 		algo = resolvedAlgo
 
+		// --cost and --memory only mean something for the algorithms that
+		// actually consume them, and only inside the range those algorithms
+		// can represent. Accepting the rest used to make the report describe
+		// a calculation that never happened: "--algo md5 --cost 12" printed
+		// work_factor 12 over the raw md5 baseline, "--cost 3" printed 3 while
+		// the rate was clamped to the cost-5 baseline, and "--algo bcrypt
+		// --memory 1g" dropped the memory silently. None of those flip a gate
+		// the way an unknown --algo did — the clamps all land on the safe side
+		// — but a tool whose output is read by a gate should not name
+		// parameters it did not apply.
+		tuning := cost.TuningFor(algo)
+		if cmd.Flags().Changed("cost") {
+			switch {
+			case !tuning.UsesWorkFactor:
+				return fmt.Errorf("--cost does not apply to %s, which is single-pass; it applies to %s",
+					algo, strings.Join(workFactorAlgos(), " and "))
+			case workFactor < tuning.MinWorkFactor:
+				return fmt.Errorf("--cost %d is below %s's minimum of %d",
+					workFactor, algo, tuning.MinWorkFactor)
+			case tuning.MaxWorkFactor > 0 && workFactor > tuning.MaxWorkFactor:
+				return fmt.Errorf("--cost %d is above %s's maximum of %d",
+					workFactor, algo, tuning.MaxWorkFactor)
+			}
+		}
+		if memoryStr != "" {
+			switch {
+			case !tuning.UsesMemory:
+				return fmt.Errorf("--memory does not apply to %s; it applies to argon2id", algo)
+			case memoryMB < 1:
+				return fmt.Errorf("--memory must be at least 1MB, got %q", memoryStr)
+			}
+		}
+		// Reported only when it was applied, so the output never names a
+		// parameter the calculation ignored.
+		if !tuning.UsesWorkFactor {
+			workFactor = 0
+		}
+
 		// --all-hw is a standalone comparison view across every profile. The
 		// single-profile concepts (budget, the CI gatekeeper, the SARIF report)
 		// are rejected rather than silently ignored — silently dropping
@@ -390,6 +428,18 @@ var rootCmd = &cobra.Command{
 			TimeToCrack:  ttc,
 		})
 	},
+}
+
+// workFactorAlgos lists the algorithms --cost applies to, derived from the
+// same table the validation reads so the error cannot name a stale set.
+func workFactorAlgos() []string {
+	var names []string
+	for _, name := range cost.AlgoNames() {
+		if cost.TuningFor(name).UsesWorkFactor {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 func Execute() error {

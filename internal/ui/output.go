@@ -14,13 +14,16 @@ type OutputData struct {
 	Entropy        float64  `json:"entropy_bits"`
 	Combinations   *big.Int `json:"combinations"`
 	Algorithm      string   `json:"algorithm"`
-	WorkFactor     int      `json:"work_factor"`
-	MemoryMB       int      `json:"memory_mb,omitempty"`
-	Hardware       string   `json:"hardware_profile"`
-	HashRate       float64  `json:"hash_rate_per_sec"`
-	TimeToCrackSec float64  `json:"time_to_crack_seconds"`
-	CostUSD        float64  `json:"cost_usd"`
-	BudgetUSD      float64  `json:"budget_usd,omitempty"`
+	// WorkFactor is 0, and omitted, for the single-pass algorithms that have
+	// none — reporting the flag's default there would name a parameter the
+	// calculation never applied.
+	WorkFactor     int     `json:"work_factor,omitempty"`
+	MemoryMB       int     `json:"memory_mb,omitempty"`
+	Hardware       string  `json:"hardware_profile"`
+	HashRate       float64 `json:"hash_rate_per_sec"`
+	TimeToCrackSec float64 `json:"time_to_crack_seconds"`
+	CostUSD        float64 `json:"cost_usd"`
+	BudgetUSD      float64 `json:"budget_usd,omitempty"`
 	// BudgetMaxChars is a pointer so a calculated 0 ("cannot resist even a
 	// 1-char password") is distinct from "not calculated" (nil, e.g. with
 	// --guesses or no --budget), which omitempty drops.

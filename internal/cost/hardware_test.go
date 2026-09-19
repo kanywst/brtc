@@ -42,10 +42,42 @@ func TestCalculateHashRate_BcryptScalesByCost(t *testing.T) {
 		t.Errorf("bcrypt cost=5 = %v, want baseline %v", atBaseline, base)
 	}
 
-	// Below the baseline, the factor is clamped to 1 (never faster than baseline)
+	// cost=4 is bcrypt's minimum and the one valid cost below the baseline, so
+	// it extrapolates rather than clamping: 2^(4-5) = half the work, twice the
+	// rate. It used to be pinned to the baseline along with everything below
+	// it, which understated the attacker for a cost bcrypt really allows.
+	atMin := CalculateHashRate("rtx-4090", "bcrypt", 4, 0)
+	if want := base * 2; atMin != want {
+		t.Errorf("bcrypt cost=4 = %v, want %v", atMin, want)
+	}
+
+	// Below bcrypt's minimum there is no such hash to model. The CLI rejects
+	// it; a direct caller is floored to the minimum rather than extrapolated
+	// into an arbitrarily fast attacker.
 	atLow := CalculateHashRate("rtx-4090", "bcrypt", 1, 0)
-	if atLow != base {
-		t.Errorf("bcrypt cost=1 = %v, want clamp to baseline %v", atLow, base)
+	if atLow != atMin {
+		t.Errorf("bcrypt cost=1 = %v, want floor to cost=4's %v", atLow, atMin)
+	}
+}
+
+func TestTuningFor(t *testing.T) {
+	// bcrypt's cost lives in two digits of the hash prefix: 4..31, no memory.
+	if got := TuningFor("bcrypt"); !got.UsesWorkFactor || got.MinWorkFactor != 4 || got.MaxWorkFactor != 31 || got.UsesMemory {
+		t.Errorf("TuningFor(bcrypt) = %+v", got)
+	}
+
+	// argon2id takes both, and has no upper bound worth modeling.
+	if got := TuningFor("ARGON2ID"); !got.UsesWorkFactor || got.MinWorkFactor != 1 || got.MaxWorkFactor != 0 || !got.UsesMemory {
+		t.Errorf("TuningFor(ARGON2ID) = %+v", got)
+	}
+
+	// The single-pass algorithms take neither, which is what lets the CLI
+	// reject --cost and --memory for them instead of reporting an unapplied
+	// parameter.
+	for _, algo := range []string{"md5", "sha1", "sha256", "ntlm"} {
+		if got := TuningFor(algo); got.UsesWorkFactor || got.UsesMemory {
+			t.Errorf("TuningFor(%s) = %+v, want neither parameter", algo, got)
+		}
 	}
 }
 
