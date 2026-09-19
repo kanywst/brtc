@@ -36,6 +36,12 @@ var Profiles map[string]HardwareProfile
 // cmd/root.go), so this only backstops direct callers of the package.
 const fallbackProfile = "rtx-4090"
 
+// fallbackAlgo is the algorithm CalculateHashRate routes an unknown --algo
+// through, and the profile whose hashrate keys define the advertised
+// algorithm set. Same contract as fallbackProfile: the CLI rejects an
+// unknown --algo before it gets here, so this only backstops direct callers.
+const fallbackAlgo = "bcrypt"
+
 func init() {
 	var f profilesFile
 	if err := yaml.Unmarshal(hashratesYAML, &f); err != nil {
@@ -47,11 +53,28 @@ func init() {
 	if !ok {
 		panic(fmt.Errorf("cost: hashrates.yaml is missing the fallback profile %q", fallbackProfile))
 	}
-	// Unknown algorithms are routed through the bcrypt path (see
+	// Unknown algorithms are routed through the fallback algorithm path (see
 	// CalculateHashRate). The fallback profile must therefore carry a
-	// positive bcrypt rate, otherwise that path silently returns 0.
-	if rate, ok := fb.Hashrates["bcrypt"]; !ok || rate <= 0 {
-		panic(fmt.Errorf("cost: fallback profile %q must have a positive bcrypt hashrate", fallbackProfile))
+	// positive rate for it, otherwise that path silently returns 0.
+	if rate, ok := fb.Hashrates[fallbackAlgo]; !ok || rate <= 0 {
+		panic(fmt.Errorf("cost: fallback profile %q must have a positive %s hashrate", fallbackProfile, fallbackAlgo))
+	}
+	// AlgoNames advertises the fallback profile's key set, and the CLI
+	// validates --algo against it. A profile missing one of those keys would
+	// make CalculateHashRate route a *valid* --algo through the fallback
+	// algorithm instead -- the same silent-downgrade false pass the --hw and
+	// --algo checks exist to prevent, just triggered by a valid input. Every
+	// profile therefore has to define exactly the same algorithms.
+	for name, p := range f.Profiles {
+		if len(p.Hashrates) != len(fb.Hashrates) {
+			panic(fmt.Errorf("cost: profile %q defines %d algorithms, want the same %d as %q",
+				name, len(p.Hashrates), len(fb.Hashrates), fallbackProfile))
+		}
+		for algo := range fb.Hashrates {
+			if rate, ok := p.Hashrates[algo]; !ok || rate <= 0 {
+				panic(fmt.Errorf("cost: profile %q must have a positive %s hashrate", name, algo))
+			}
+		}
 	}
 	Profiles = f.Profiles
 }
@@ -95,6 +118,40 @@ func ResolveProfileName(hw string) (name string, known bool) {
 	return fallbackProfile, false
 }
 
+// normalizeAlgoKey maps a user-supplied --algo value to a lookup key, so
+// ResolveAlgoName and CalculateHashRate agree on case and surrounding space.
+func normalizeAlgoKey(algo string) string {
+	return strings.ToLower(strings.TrimSpace(algo))
+}
+
+// AlgoNames returns every known --algo value, sorted alphabetically for a
+// stable order. The CLI builds both its --algo help string and its
+// unknown-algorithm error from this, so the advertised set is derived from
+// hashrates.yaml rather than duplicated alongside it. init guarantees every
+// profile defines the same set, so reading it off the fallback profile is
+// enough.
+func AlgoNames() []string {
+	fb := Profiles[fallbackProfile]
+	names := make([]string, 0, len(fb.Hashrates))
+	for name := range fb.Hashrates {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// ResolveAlgoName maps a user-supplied --algo value to the canonical key
+// actually used for the calculation. The bool reports whether the input
+// matched a known algorithm; when it is false the returned name is
+// fallbackAlgo, mirroring what CalculateHashRate would silently do.
+func ResolveAlgoName(algo string) (name string, known bool) {
+	key := normalizeAlgoKey(algo)
+	if _, ok := Profiles[fallbackProfile].Hashrates[key]; ok {
+		return key, true
+	}
+	return fallbackAlgo, false
+}
+
 // argon2BaselineMemoryMB is the memory parameter the Argon2id baseline
 // hashrates in hashrates.yaml are calibrated against. Doubling memory
 // roughly halves attacker throughput on memory-bandwidth-bound GPUs.
@@ -107,14 +164,19 @@ const argon2BaselineMemoryMB = 64
 // the baseline) leaves the rate at the YAML baseline (m=64MB).
 func CalculateHashRate(hw, algo string, workFactor, memoryMB int) float64 {
 	p := lookupProfile(hw)
-	algo = strings.ToLower(algo)
+	algo = normalizeAlgoKey(algo)
 
 	if _, ok := p.Hashrates[algo]; !ok {
 		// Unknown algorithm: route through bcrypt entirely (rate AND
 		// scaling). Returning the bare bcrypt baseline without applying
 		// the cost-factor scaling would silently overestimate the
 		// attacker for any workFactor > 5.
-		algo = "bcrypt"
+		//
+		// The CLI rejects an unknown --algo before it reaches here (see
+		// cmd/root.go), because bcrypt is the *slowest* algorithm: a typo
+		// landing here stretches the crack time and turns --fail-under-time
+		// into a false pass. This only backstops direct callers.
+		algo = fallbackAlgo
 	}
 	base := p.Hashrates[algo]
 

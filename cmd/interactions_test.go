@@ -55,6 +55,15 @@ func TestFlagInteractions(t *testing.T) {
 		{"unknown hw profile is rejected", []string{"pw", "-o", "json", "--hw", "rtx-4900"}, `unknown hardware profile "rtx-4900"`},
 		{"unknown hw error lists the known profiles", []string{"pw", "-o", "json", "--hw", "h100"}, "known profiles: aws-p5.48xlarge,"},
 		{"a known hw profile is accepted case-insensitively", []string{"pw", "-o", "json", "--hw", "RTX-5090"}, ""},
+		// Same class of bug on --algo, and worse: an unknown algorithm used to
+		// be modeled as bcrypt, the slowest one in the table, while the JSON
+		// and SARIF reports echoed the typo back as the algorithm modeled.
+		{"unknown algo is rejected", []string{"pw", "-o", "json", "--algo", "sha-256"}, `unknown hash algorithm "sha-256"`},
+		{"unknown algo error lists the known algorithms", []string{"pw", "-o", "json", "--algo", "scrypt"}, "known algorithms: argon2id,"},
+		{"a known algo is accepted case-insensitively", []string{"pw", "-o", "json", "--algo", "MD5"}, ""},
+		// --all-hw feeds algo straight into buildMatrix, so it needs the same
+		// guard as the single-profile path.
+		{"unknown algo is rejected under --all-hw", []string{"pw", "--all-hw", "--algo", "scrypt"}, `unknown hash algorithm "scrypt"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
