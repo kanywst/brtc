@@ -221,15 +221,17 @@ func CalculateHashRate(hw, algo string, workFactor, memoryMB int) float64 {
 	}
 	base := p.Hashrates[algo]
 
-	// The CLI validates --cost against TuningFor's range, so the floors below
+	// The CLI validates --cost against TuningFor's range, so the clamps below
 	// only backstop direct callers passing a work factor the algorithm itself
-	// cannot represent. They clamp rather than extrapolate downward, which
-	// keeps the modeled attacker at the floor instead of an arbitrarily fast
-	// one, but a caller that relies on that is asking about a hash that does
-	// not exist.
+	// cannot represent. They pin the modeled attacker to the nearest end of
+	// the real range rather than extrapolating off it, but a caller that
+	// relies on that is asking about a hash that does not exist.
 	tuning := TuningFor(algo)
 	if workFactor < tuning.MinWorkFactor {
 		workFactor = tuning.MinWorkFactor
+	}
+	if tuning.MaxWorkFactor > 0 && workFactor > tuning.MaxWorkFactor {
+		workFactor = tuning.MaxWorkFactor
 	}
 
 	switch algo {

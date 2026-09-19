@@ -58,6 +58,14 @@ func TestCalculateHashRate_BcryptScalesByCost(t *testing.T) {
 	if atLow != atMin {
 		t.Errorf("bcrypt cost=1 = %v, want floor to cost=4's %v", atLow, atMin)
 	}
+
+	// Symmetrically above it. Without the ceiling, cost=99 returns a rate
+	// ~2^68 below the real floor of what bcrypt can express, which reads as a
+	// defensible number rather than the out-of-range input it is.
+	atMax := CalculateHashRate("rtx-4090", "bcrypt", 31, 0)
+	if atHigh := CalculateHashRate("rtx-4090", "bcrypt", 99, 0); atHigh != atMax {
+		t.Errorf("bcrypt cost=99 = %v, want ceiling to cost=31's %v", atHigh, atMax)
+	}
 }
 
 func TestTuningFor(t *testing.T) {
