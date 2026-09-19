@@ -212,6 +212,20 @@ var rootCmd = &cobra.Command{
 		}
 		hwProfile = resolvedHW
 
+		// Same treatment for --algo, and for the same reason. CalculateHashRate
+		// routes an unknown algorithm through bcrypt, which is the slowest one
+		// in the table: a typo (--algo sha-256) makes the attacker look ~6
+		// orders of magnitude weaker, the crack time comes out longer, and
+		// --fail-under-time reports a pass. Worse than the --hw case, because
+		// the JSON and SARIF reports echo the typo back as the algorithm that
+		// was modeled, so the CI log never shows the substitution.
+		resolvedAlgo, algoKnown := cost.ResolveAlgoName(algo)
+		if !algoKnown {
+			return fmt.Errorf("unknown hash algorithm %q (known algorithms: %s)",
+				algo, strings.Join(cost.AlgoNames(), ", "))
+		}
+		algo = resolvedAlgo
+
 		// --all-hw is a standalone comparison view across every profile. The
 		// single-profile concepts (budget, the CI gatekeeper, the SARIF report)
 		// are rejected rather than silently ignored — silently dropping
@@ -387,7 +401,8 @@ func init() {
 	// cannot leave the help advertising a stale set.
 	rootCmd.Flags().StringVar(&hwProfile, "hw", "rtx-4090",
 		"Attacker's hardware profile ("+strings.Join(cost.ProfileNames(), ", ")+")")
-	rootCmd.Flags().StringVar(&algo, "algo", "bcrypt", "Server-side hash algorithm (md5, sha1, sha256, ntlm, bcrypt, argon2id)")
+	rootCmd.Flags().StringVar(&algo, "algo", "bcrypt",
+		"Server-side hash algorithm ("+strings.Join(cost.AlgoNames(), ", ")+")")
 	rootCmd.Flags().IntVar(&workFactor, "cost", 10, "Work factor (bcrypt) or time iterations (argon2id)")
 	rootCmd.Flags().StringVar(&memoryStr, "memory", "", "Argon2id memory parameter (e.g. 64m, 128m, 1g). Defaults to the profile baseline (64MB)")
 	rootCmd.Flags().StringVar(&externalGuesses, "guesses", "", "Override entropy with an external guess count from zxcvbn or similar (e.g. 1e10, 12345)")

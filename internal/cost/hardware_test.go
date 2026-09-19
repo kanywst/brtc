@@ -2,9 +2,15 @@ package cost
 
 import (
 	"math"
+	"slices"
 	"sort"
 	"testing"
 )
+
+// requiredAlgos is the algorithm set the CLI advertises via --algo, kept
+// hand-written on purpose: AlgoNames reads it off hashrates.yaml, so a
+// generated list checked against itself would prove nothing.
+var requiredAlgos = []string{"md5", "sha1", "sha256", "ntlm", "bcrypt", "argon2id"}
 
 func TestCalculateHashRate_KnownProfile(t *testing.T) {
 	got := CalculateHashRate("rtx-4090", "md5", 10, 0)
@@ -99,6 +105,38 @@ func TestResolveProfileName(t *testing.T) {
 	}
 }
 
+func TestResolveAlgoName(t *testing.T) {
+	// A known algorithm resolves to its canonical key and reports known=true.
+	if name, known := ResolveAlgoName("BCRYPT"); name != "bcrypt" || !known {
+		t.Errorf("ResolveAlgoName(BCRYPT) = (%q, %v), want (bcrypt, true)", name, known)
+	}
+
+	// Surrounding whitespace is trimmed, matching CalculateHashRate.
+	if name, known := ResolveAlgoName("  argon2id  "); name != "argon2id" || !known {
+		t.Errorf("ResolveAlgoName(padded) = (%q, %v), want (argon2id, true)", name, known)
+	}
+
+	// An unknown algorithm reports known=false and names the fallback the CLI
+	// is refusing to let it reach.
+	if name, known := ResolveAlgoName("sha-256"); name != "bcrypt" || known {
+		t.Errorf("ResolveAlgoName(sha-256) = (%q, %v), want (bcrypt, false)", name, known)
+	}
+}
+
+func TestAlgoNames(t *testing.T) {
+	names := AlgoNames()
+	if !sort.StringsAreSorted(names) {
+		t.Errorf("AlgoNames() = %v, want alphabetical order", names)
+	}
+	// The advertised set must be exactly what every profile carries, so the
+	// --algo help, the unknown-algorithm error, and the README all agree.
+	want := append([]string(nil), requiredAlgos...)
+	sort.Strings(want)
+	if !slices.Equal(names, want) {
+		t.Errorf("AlgoNames() = %v, want %v", names, want)
+	}
+}
+
 func TestTotalCost(t *testing.T) {
 	// rtx-4090 is $0.35/hour. 1 hour = $0.35.
 	got := TotalCost("rtx-4090", 3600)
@@ -154,8 +192,6 @@ func TestProfileNames(t *testing.T) {
 // the CLI exposes via --algo, plus a citation. Catches data drift where a
 // new algorithm or profile is added but the YAML row is left half-filled.
 func TestProfilesAreComplete(t *testing.T) {
-	requiredAlgos := []string{"md5", "sha1", "sha256", "ntlm", "bcrypt", "argon2id"}
-
 	for name, p := range Profiles {
 		t.Run(name, func(t *testing.T) {
 			if p.Name == "" {
