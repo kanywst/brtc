@@ -4,12 +4,20 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+
+	"github.com/spf13/pflag"
 )
 
 // runBRTC executes rootCmd with the given args, capturing any error, and
 // resets every flag-bound global afterwards. Cobra binds flags to package
 // globals and only overwrites them when the flag is present, so without this
 // reset a --all-hw or --hibp set by one case would leak into the next.
+//
+// The per-flag Changed bits are reset too. They are sticky across Execute
+// calls on a shared rootCmd, which a real one-shot process never sees, so
+// leaving them set makes a case that relies on Flags().Changed — the --cost
+// and --hw checks — read a flag as user-supplied because an earlier case
+// passed it.
 func runBRTC(t *testing.T, args ...string) error {
 	t.Helper()
 	var out, errOut bytes.Buffer
@@ -25,6 +33,7 @@ func runBRTC(t *testing.T, args ...string) error {
 		externalGuesses, useZxcvbn, useHIBP = "", false, false
 		budget, outputFormat, failUnderTime, allHW = "", "tui", "", false
 		failUnderEntropy, failOnBreach = 0, false
+		rootCmd.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
 	})
 	return rootCmd.Execute()
 }
@@ -64,6 +73,21 @@ func TestFlagInteractions(t *testing.T) {
 		// --all-hw feeds algo straight into buildMatrix, so it needs the same
 		// guard as the single-profile path.
 		{"unknown algo is rejected under --all-hw", []string{"pw", "--all-hw", "--algo", "scrypt"}, `unknown hash algorithm "scrypt"`},
+		// --cost and --memory used to be accepted for algorithms that consume
+		// neither, so the report named a work factor or a memory size the
+		// calculation never applied.
+		{"cost is rejected for a single-pass algo", []string{"pw", "-o", "json", "--algo", "md5", "--cost", "12"}, "--cost does not apply to md5"},
+		{"cost error names the algos it applies to", []string{"pw", "-o", "json", "--algo", "ntlm", "--cost", "12"}, "applies to: argon2id, bcrypt"},
+		{"memory is rejected for a non-argon2id algo", []string{"pw", "-o", "json", "--algo", "bcrypt", "--memory", "1g"}, "--memory does not apply to bcrypt"},
+		{"cost below bcrypt's minimum is rejected", []string{"pw", "-o", "json", "--algo", "bcrypt", "--cost", "3"}, "below bcrypt's minimum of 4"},
+		{"cost above bcrypt's maximum is rejected", []string{"pw", "-o", "json", "--algo", "bcrypt", "--cost", "99"}, "above bcrypt's maximum of 31"},
+		{"cost below argon2id's minimum is rejected", []string{"pw", "-o", "json", "--algo", "argon2id", "--cost", "0"}, "below argon2id's minimum of 1"},
+		{"zero memory is rejected", []string{"pw", "-o", "json", "--algo", "argon2id", "--memory", "0m"}, "--memory must be at least 1MB"},
+		// The default --cost is not "set", so it must not trip the check for an
+		// algorithm that has no work factor.
+		{"an unset cost is fine for a single-pass algo", []string{"pw", "-o", "json", "--algo", "md5"}, ""},
+		{"bcrypt's boundary costs are accepted", []string{"pw", "-o", "json", "--algo", "bcrypt", "--cost", "31"}, ""},
+		{"argon2id accepts memory", []string{"pw", "-o", "json", "--algo", "argon2id", "--memory", "128m"}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

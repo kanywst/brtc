@@ -20,7 +20,10 @@ func renderTable(out io.Writer, data OutputData) error {
 
 	rows := [][2]string{
 		{"Algorithm", data.Algorithm},
-		{"Work Factor", fmt.Sprintf("%d", data.WorkFactor)},
+	}
+	// Single-pass algorithms report no work factor (see OutputData).
+	if data.WorkFactor > 0 {
+		rows = append(rows, [2]string{"Work Factor", fmt.Sprintf("%d", data.WorkFactor)})
 	}
 	if data.MemoryMB > 0 {
 		rows = append(rows, [2]string{"Memory", fmt.Sprintf("%d MB", data.MemoryMB)})

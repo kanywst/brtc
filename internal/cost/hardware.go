@@ -152,6 +152,47 @@ func ResolveAlgoName(algo string) (name string, known bool) {
 	return fallbackAlgo, false
 }
 
+// AlgoTuning describes which tuning parameters an algorithm actually
+// consumes, and the work-factor range CalculateHashRate can model.
+//
+// The CLI validates --cost and --memory against this so it never reports a
+// parameter it did not apply: a fast algorithm has no work factor at all, and
+// only argon2id reads --memory.
+type AlgoTuning struct {
+	UsesWorkFactor bool
+	MinWorkFactor  int
+	MaxWorkFactor  int // 0 means no upper bound
+	UsesMemory     bool
+}
+
+// TuningFor returns the tuning parameters algo consumes. An unknown algorithm
+// reports the fallback's, matching how CalculateHashRate treats it.
+func TuningFor(algo string) AlgoTuning {
+	key := normalizeAlgoKey(algo)
+	switch key {
+	case "bcrypt":
+		// 4..31 is bcrypt's own cost range: the cost is stored in two
+		// decimal digits of the hash prefix and the reference implementation
+		// refuses anything outside it. A --cost of 99 is not a slow bcrypt,
+		// it is not a bcrypt hash at all.
+		return AlgoTuning{UsesWorkFactor: true, MinWorkFactor: 4, MaxWorkFactor: 31}
+	case "argon2id":
+		// Argon2 caps t at 2^32-1, far past anything worth modeling, so only
+		// the floor is enforced. t=0 is not a valid Argon2 parameter.
+		return AlgoTuning{UsesWorkFactor: true, MinWorkFactor: 1, UsesMemory: true}
+	default:
+		if _, known := Profiles[fallbackProfile].Hashrates[key]; !known {
+			// CalculateHashRate routes an unknown algorithm through the
+			// fallback, scaling included, so reporting "no parameters" here
+			// would contradict the rate it returns for the same input.
+			return TuningFor(fallbackAlgo)
+		}
+		// md5, sha1, sha256 and ntlm are single-pass: they have no work
+		// factor and no memory parameter to tune.
+		return AlgoTuning{}
+	}
+}
+
 // argon2BaselineMemoryMB is the memory parameter the Argon2id baseline
 // hashrates in hashrates.yaml are calibrated against. Doubling memory
 // roughly halves attacker throughput on memory-bandwidth-bound GPUs.
@@ -180,21 +221,27 @@ func CalculateHashRate(hw, algo string, workFactor, memoryMB int) float64 {
 	}
 	base := p.Hashrates[algo]
 
+	// The CLI validates --cost against TuningFor's range, so the clamps below
+	// only backstop direct callers passing a work factor the algorithm itself
+	// cannot represent. They pin the modeled attacker to the nearest end of
+	// the real range rather than extrapolating off it, but a caller that
+	// relies on that is asking about a hash that does not exist.
+	tuning := TuningFor(algo)
+	if workFactor < tuning.MinWorkFactor {
+		workFactor = tuning.MinWorkFactor
+	}
+	if tuning.MaxWorkFactor > 0 && workFactor > tuning.MaxWorkFactor {
+		workFactor = tuning.MaxWorkFactor
+	}
+
 	switch algo {
 	case "bcrypt":
-		// Bcrypt cost is exponential (2^cost). Baseline is cost=5;
-		// e.g. cost=10 is 2^5 = 32 times slower. workFactor < 5 is
-		// clamped so an unrealistic input never exceeds the baseline.
-		factor := math.Pow(2, float64(workFactor-5))
-		if factor < 1 {
-			factor = 1
-		}
-		return base / factor
+		// Bcrypt cost is exponential (2^cost). Baseline is cost=5, so
+		// cost=10 is 2^5 = 32 times slower and cost=4, the one valid cost
+		// below the baseline, is twice as fast.
+		return base / math.Pow(2, float64(workFactor-5))
 	case "argon2id":
 		timeFactor := float64(workFactor)
-		if timeFactor < 1 {
-			timeFactor = 1
-		}
 		memFactor := 1.0
 		if memoryMB > argon2BaselineMemoryMB {
 			memFactor = float64(memoryMB) / float64(argon2BaselineMemoryMB)

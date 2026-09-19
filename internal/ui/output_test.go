@@ -116,6 +116,38 @@ func TestOutputData_BudgetUnlimitedJSON(t *testing.T) {
 	}
 }
 
+// Pins the work_factor field's presence in both directions. It is a published
+// JSON schema with no consumer in this repo, so nothing else would notice it
+// reappearing for a single-pass algorithm (naming a parameter that was never
+// applied) or vanishing for a tuned one (dropping a real input from the
+// report). Changing either half is a breaking change for downstream parsers
+// and should require editing this test.
+func TestOutputData_WorkFactorPresenceJSON(t *testing.T) {
+	tuned := sampleData()
+	tuned.Algorithm = "bcrypt"
+	tuned.WorkFactor = 12
+	b, err := json.Marshal(tuned)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if out := string(b); !strings.Contains(out, `"work_factor":12`) {
+		t.Errorf("expected work_factor:12 for bcrypt in:\n%s", out)
+	}
+
+	// 0 is not a valid work factor for any algorithm brtc models, so it is
+	// unambiguously "this algorithm has none" rather than a real value.
+	singlePass := sampleData()
+	singlePass.Algorithm = "md5"
+	singlePass.WorkFactor = 0
+	b, err = json.Marshal(singlePass)
+	if err != nil {
+		t.Fatalf("marshal failed: %v", err)
+	}
+	if out := string(b); strings.Contains(out, "work_factor") {
+		t.Errorf("work_factor should be omitted for a single-pass algorithm:\n%s", out)
+	}
+}
+
 func TestFormatDuration(t *testing.T) {
 	tests := []struct {
 		secs    float64
