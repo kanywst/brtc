@@ -77,7 +77,7 @@ func TestFlagInteractions(t *testing.T) {
 		// neither, so the report named a work factor or a memory size the
 		// calculation never applied.
 		{"cost is rejected for a single-pass algo", []string{"pw", "-o", "json", "--algo", "md5", "--cost", "12"}, "--cost does not apply to md5"},
-		{"cost error names the algos it applies to", []string{"pw", "-o", "json", "--algo", "ntlm", "--cost", "12"}, "applies to argon2id and bcrypt"},
+		{"cost error names the algos it applies to", []string{"pw", "-o", "json", "--algo", "ntlm", "--cost", "12"}, "applies to: argon2id, bcrypt"},
 		{"memory is rejected for a non-argon2id algo", []string{"pw", "-o", "json", "--algo", "bcrypt", "--memory", "1g"}, "--memory does not apply to bcrypt"},
 		{"cost below bcrypt's minimum is rejected", []string{"pw", "-o", "json", "--algo", "bcrypt", "--cost", "3"}, "below bcrypt's minimum of 4"},
 		{"cost above bcrypt's maximum is rejected", []string{"pw", "-o", "json", "--algo", "bcrypt", "--cost", "99"}, "above bcrypt's maximum of 31"},

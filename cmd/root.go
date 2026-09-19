@@ -240,8 +240,8 @@ var rootCmd = &cobra.Command{
 		if cmd.Flags().Changed("cost") {
 			switch {
 			case !tuning.UsesWorkFactor:
-				return fmt.Errorf("--cost does not apply to %s, which is single-pass; it applies to %s",
-					algo, strings.Join(workFactorAlgos(), " and "))
+				return fmt.Errorf("--cost does not apply to %s, which is single-pass; it applies to: %s",
+					algo, strings.Join(workFactorAlgos(), ", "))
 			case workFactor < tuning.MinWorkFactor:
 				return fmt.Errorf("--cost %d is below %s's minimum of %d",
 					workFactor, algo, tuning.MinWorkFactor)
