@@ -79,6 +79,14 @@ func TestTuningFor(t *testing.T) {
 			t.Errorf("TuningFor(%s) = %+v, want neither parameter", algo, got)
 		}
 	}
+
+	// An unknown algorithm has to agree with CalculateHashRate, which routes
+	// it through the fallback and applies that algorithm's scaling. Reporting
+	// the zero value here would tell a direct caller no work factor applies
+	// while the rate it gets back had one applied.
+	if got, want := TuningFor("bogus"), TuningFor(fallbackAlgo); got != want {
+		t.Errorf("TuningFor(bogus) = %+v, want the fallback's %+v", got, want)
+	}
 }
 
 func TestCalculateHashRate_Argon2LinearScaling(t *testing.T) {

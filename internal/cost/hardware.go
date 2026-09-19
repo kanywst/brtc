@@ -168,7 +168,8 @@ type AlgoTuning struct {
 // TuningFor returns the tuning parameters algo consumes. An unknown algorithm
 // reports the fallback's, matching how CalculateHashRate treats it.
 func TuningFor(algo string) AlgoTuning {
-	switch normalizeAlgoKey(algo) {
+	key := normalizeAlgoKey(algo)
+	switch key {
 	case "bcrypt":
 		// 4..31 is bcrypt's own cost range: the cost is stored in two
 		// decimal digits of the hash prefix and the reference implementation
@@ -180,6 +181,12 @@ func TuningFor(algo string) AlgoTuning {
 		// the floor is enforced. t=0 is not a valid Argon2 parameter.
 		return AlgoTuning{UsesWorkFactor: true, MinWorkFactor: 1, UsesMemory: true}
 	default:
+		if _, known := Profiles[fallbackProfile].Hashrates[key]; !known {
+			// CalculateHashRate routes an unknown algorithm through the
+			// fallback, scaling included, so reporting "no parameters" here
+			// would contradict the rate it returns for the same input.
+			return TuningFor(fallbackAlgo)
+		}
 		// md5, sha1, sha256 and ntlm are single-pass: they have no work
 		// factor and no memory parameter to tune.
 		return AlgoTuning{}
