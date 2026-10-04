@@ -125,6 +125,9 @@ func (m model) View() string {
 		fmt.Sprintf("%s%s", propertyStyle.Render("Time to Crack:"), timeColored),
 		fmt.Sprintf("%s%s", propertyStyle.Render("Estimated Cost:"), costColored),
 	}
+	if m.data.BaselineReviewed != "" {
+		rows = append(rows, fmt.Sprintf("%s%s", propertyStyle.Render("Baseline Date:"), renderBaseline(m.data)))
+	}
 
 	if m.data.RecommendedChars > 0 {
 		rows = append(rows, "")
@@ -224,6 +227,15 @@ func renderEntropyBar(entropy float64) string {
 
 	bar := strings.Repeat("█", filled) + strings.Repeat("░", entropyBarWidth-filled)
 	return fmt.Sprintf("%s %s", style.Render(bar), valueStyle.Render(fmt.Sprintf("%.0f/%.0f bits", entropy, entropyBarCap)))
+}
+
+// renderBaseline shows when the hardware numbers were last reviewed, in the
+// warning colour once they are over a year old.
+func renderBaseline(data OutputData) string {
+	if data.BaselineStale {
+		return warningStyle.Render(data.BaselineReviewed + " (over a year old — times and costs likely overstated)")
+	}
+	return valueStyle.Render(data.BaselineReviewed)
 }
 
 // renderVerdict is the one-line headline under the title: the whole point of

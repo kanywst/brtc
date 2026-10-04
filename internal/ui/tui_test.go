@@ -64,3 +64,20 @@ func TestView_FitsInATerminal(t *testing.T) {
 		})
 	}
 }
+
+func TestView_Baseline(t *testing.T) {
+	d := sampleData()
+	if strings.Contains(initialModel(d).View(), "Baseline Date") {
+		t.Error("View() shows a baseline row with no baseline date set")
+	}
+	d.BaselineReviewed, d.BaselineStale = "2025-01-01", true
+	out := initialModel(d).View()
+	for _, want := range []string{"Baseline Date", "2025-01-01", "over a year old"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("View() missing %q in:\n%s", want, out)
+		}
+	}
+	if w := lipgloss.Width(out); w > maxBoxWidth {
+		t.Errorf("stale baseline row widens the box to %d columns, want <= %d", w, maxBoxWidth)
+	}
+}

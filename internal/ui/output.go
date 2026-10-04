@@ -41,6 +41,14 @@ type OutputData struct {
 	// Any positive value means the password is compromised regardless of its
 	// entropy — crack time is effectively zero.
 	BreachCount int `json:"breach_count,omitempty"`
+	// BaselineSource and BaselineReviewed say where the hardware profile's
+	// hashrate and price came from and when they were last checked, so a
+	// report read months later can be aged. BaselineStale is set once that
+	// date is more than a year old: newer GPUs and cheaper rentals mean the
+	// crack time and cost above are likely overstated.
+	BaselineSource   string `json:"baseline_source,omitempty"`
+	BaselineReviewed string `json:"baseline_reviewed,omitempty"`
+	BaselineStale    bool   `json:"baseline_stale,omitempty"`
 }
 
 // MarshalJSON emits combinations as a JSON string rather than a number.

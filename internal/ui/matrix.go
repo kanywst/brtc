@@ -18,6 +18,10 @@ type MatrixRow struct {
 	TimeToCrackSec float64 `json:"time_to_crack_seconds"`
 	CostUSD        float64 `json:"cost_usd"`
 	CostPerHourUSD float64 `json:"cost_per_hour_usd"`
+	// BaselineReviewed is when this profile's numbers were last checked.
+	BaselineReviewed string `json:"baseline_reviewed,omitempty"`
+	// BaselineStale is set once that date is more than a year old.
+	BaselineStale bool `json:"baseline_stale,omitempty"`
 }
 
 // PrintMatrixJSON writes the comparison rows as a JSON array.

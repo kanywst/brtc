@@ -20,6 +20,14 @@ import (
 // passed it.
 func runBRTC(t *testing.T, args ...string) error {
 	t.Helper()
+	_, err := runBRTCStderr(t, args...)
+	return err
+}
+
+// runBRTCStderr is runBRTC that also returns what the command wrote to
+// stderr through cobra (warnings; the returned error is not included).
+func runBRTCStderr(t *testing.T, args ...string) (string, error) {
+	t.Helper()
 	var out, errOut bytes.Buffer
 	rootCmd.SetOut(&out)
 	rootCmd.SetErr(&errOut)
@@ -35,7 +43,8 @@ func runBRTC(t *testing.T, args ...string) error {
 		failUnderEntropy, failOnBreach = 0, false
 		rootCmd.Flags().VisitAll(func(f *pflag.Flag) { f.Changed = false })
 	})
-	return rootCmd.Execute()
+	err := rootCmd.Execute()
+	return errOut.String(), err
 }
 
 func TestFlagInteractions(t *testing.T) {

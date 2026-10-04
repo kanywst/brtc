@@ -9,6 +9,7 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/kanywst/brtc/v2/internal/breach"
 	"github.com/kanywst/brtc/v2/internal/calc"
@@ -46,6 +47,39 @@ func resolveOutputFormat(requested string, explicit, stdoutIsTTY bool) string {
 	return requested
 }
 
+// now is the clock baseline staleness is judged against, swapped out by
+// tests so the warning does not depend on when they run.
+var now = time.Now
+
+// staleBaselineWarnings returns one stderr line per review date among the
+// given profiles whose baseline is over a year old, so profiles re-checked
+// together share a line instead of repeating it. It warns rather than fails:
+// an old baseline overstates the attacker's cost, which is worth knowing, but
+// the gates still decide the exit code.
+func staleBaselineWarnings(profiles []string, at time.Time) []string {
+	byDate := map[string][]string{}
+	for _, p := range profiles {
+		if b := cost.BaselineFor(p); b.Stale(at) {
+			d := b.Reviewed.Format(time.DateOnly)
+			byDate[d] = append(byDate[d], p)
+		}
+	}
+	dates := make([]string, 0, len(byDate))
+	for d := range byDate {
+		dates = append(dates, d)
+	}
+	sort.Strings(dates)
+	lines := make([]string, 0, len(dates))
+	for _, d := range dates {
+		names := byDate[d]
+		sort.Strings(names)
+		lines = append(lines, fmt.Sprintf("warning: the hardware baseline for %s was last reviewed %s, over a year ago; "+
+			"newer hardware and rental prices likely make the real crack time and cost lower than shown\n",
+			strings.Join(names, ", "), d))
+	}
+	return lines
+}
+
 var (
 	hwProfile        string
 	algo             string
@@ -66,18 +100,20 @@ var (
 // profile and returns the rows sorted fastest-attacker-first (then by name
 // for a stable order). algo and workFactor are passed in (rather than read
 // from globals) so the function stays pure and testable.
-func buildMatrix(combinations *big.Int, algo string, workFactor, memoryMB int) []ui.MatrixRow {
+func buildMatrix(combinations *big.Int, algo string, workFactor, memoryMB int, at time.Time) []ui.MatrixRow {
 	rows := make([]ui.MatrixRow, 0, len(cost.Profiles))
 	for key, p := range cost.Profiles {
 		hr := cost.CalculateHashRate(key, algo, workFactor, memoryMB)
 		ttc := calc.TimeToCrack(combinations, hr)
 		rows = append(rows, ui.MatrixRow{
-			Profile:        key,
-			Name:           p.Name,
-			HashRate:       hr,
-			TimeToCrackSec: ttc,
-			CostUSD:        cost.TotalCost(key, ttc),
-			CostPerHourUSD: p.CostPerHourUSD,
+			Profile:          key,
+			Name:             p.Name,
+			HashRate:         hr,
+			TimeToCrackSec:   ttc,
+			CostUSD:          cost.TotalCost(key, ttc),
+			CostPerHourUSD:   p.CostPerHourUSD,
+			BaselineReviewed: cost.BaselineFor(key).Reviewed.Format(time.DateOnly),
+			BaselineStale:    cost.BaselineFor(key).Stale(at),
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool {
@@ -285,7 +321,11 @@ var rootCmd = &cobra.Command{
 			case useHIBP:
 				return fmt.Errorf("--hibp cannot be combined with --all-hw")
 			}
-			rows := buildMatrix(entropy.Combinations, algo, workFactor, memoryMB)
+			at := now()
+			rows := buildMatrix(entropy.Combinations, algo, workFactor, memoryMB, at)
+			for _, w := range staleBaselineWarnings(cost.ProfileNames(), at) {
+				cmd.PrintErr(w)
+			}
 			if strings.ToLower(outputFormat) == "json" {
 				return ui.PrintMatrixJSON(rows)
 			}
@@ -373,6 +413,13 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
+		baseline := cost.BaselineFor(hwProfile)
+		baselineAt := now()
+		baselineStale := baseline.Stale(baselineAt)
+		for _, w := range staleBaselineWarnings([]string{hwProfile}, baselineAt) {
+			cmd.PrintErr(w)
+		}
+
 		// Compile output data
 		outData := ui.OutputData{
 			PasswordLength:   entropy.Length,
@@ -392,6 +439,9 @@ var rootCmd = &cobra.Command{
 			RecommendedChars: recommendedChars,
 			BreachChecked:    breachChecked,
 			BreachCount:      breachCount,
+			BaselineSource:   baseline.Source,
+			BaselineReviewed: baseline.Reviewed.Format(time.DateOnly),
+			BaselineStale:    baselineStale,
 		}
 
 		// Present output. IsCygwinTerminal covers MSYS/Git Bash on Windows,
