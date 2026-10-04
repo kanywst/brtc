@@ -42,6 +42,13 @@ func renderTable(out io.Writer, data OutputData) error {
 		[2]string{"Time to Crack", FormatDuration(data.TimeToCrackSec)},
 		[2]string{"Estimated Cost", FormatCost(data.CostUSD) + " USD"},
 	)
+	if data.BaselineReviewed != "" {
+		baseline := data.BaselineReviewed
+		if data.BaselineStale {
+			baseline += " (over a year old, times and costs likely overstated)"
+		}
+		rows = append(rows, [2]string{"Baseline Date", baseline})
+	}
 	if data.BudgetUSD > 0 {
 		rows = append(rows, [2]string{"Budget Target", fmt.Sprintf("$%.2f USD", data.BudgetUSD)})
 		switch {

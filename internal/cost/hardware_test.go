@@ -5,6 +5,7 @@ import (
 	"slices"
 	"sort"
 	"testing"
+	"time"
 )
 
 // requiredAlgos is the algorithm set the CLI advertises via --algo, kept
@@ -265,5 +266,41 @@ func TestTotalCost_OwnedHardwareIsZeroEvenForInfiniteTime(t *testing.T) {
 	// for an astronomically long password whose crack time overflows to +Inf.
 	if got := TotalCost("mac-m3", math.Inf(1)); got != 0 {
 		t.Errorf("TotalCost(mac-m3, +Inf) = %v, want 0", got)
+	}
+}
+
+func TestBaselineFor(t *testing.T) {
+	for name, p := range Profiles {
+		b := BaselineFor(name)
+		if b.Source != p.Source {
+			t.Errorf("BaselineFor(%q).Source = %q, want %q", name, b.Source, p.Source)
+		}
+		if got := b.Reviewed.Format(time.DateOnly); got != p.LastReviewed {
+			t.Errorf("BaselineFor(%q).Reviewed = %s, want %s", name, got, p.LastReviewed)
+		}
+	}
+	// Same fallback as the rate and cost lookups, so a direct caller that
+	// passes an unknown profile gets the provenance of the numbers it got.
+	if got, want := BaselineFor("no-such-gpu"), BaselineFor(fallbackProfile); got != want {
+		t.Errorf("BaselineFor(unknown) = %+v, want the fallback's %+v", got, want)
+	}
+}
+
+func TestBaselineStale(t *testing.T) {
+	reviewed := time.Date(2026, 7, 19, 0, 0, 0, 0, time.UTC)
+	b := Baseline{Reviewed: reviewed}
+	tests := []struct {
+		now  time.Time
+		want bool
+	}{
+		{reviewed, false},
+		{reviewed.AddDate(1, 0, 0), false},
+		{reviewed.AddDate(1, 0, 0).Add(time.Second), true},
+		{reviewed.AddDate(2, 0, 0), true},
+	}
+	for _, tt := range tests {
+		if got := b.Stale(tt.now); got != tt.want {
+			t.Errorf("Stale(%s) = %v, want %v", tt.now.Format(time.RFC3339), got, tt.want)
+		}
 	}
 }

@@ -140,6 +140,8 @@ brtc -o json "P@ssw0rd123!" | jq .
 
 When stdout is not a terminal (a pipe, a file, or a CI log) and no `-o` is given, `brtc` automatically uses `json` instead of the TUI, so piping never produces escape codes. Pass `-o tui` to force the interactive view.
 
+Reports say when the hardware numbers were last checked: `baseline_reviewed` (plus `baseline_source`) in JSON, `Baseline Date` in the TUI and table, and `baseline_reviewed` per row in `--all-hw -o json`. Once that date is more than a year old, `brtc` prints a warning to stderr and sets `baseline_stale: true` in either JSON shape: newer GPUs and cheaper rentals mean the real crack time and cost are likely lower than shown. The warning never changes the exit code; the gates still decide that.
+
 #### Compare Every Hardware Profile
 
 See, at a glance, how the same password fares against every attacker — from a Raspberry Pi to an 8x H100 cluster — sorted fastest-first:

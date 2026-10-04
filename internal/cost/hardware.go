@@ -6,6 +6,7 @@ import (
 	"math"
 	"sort"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -19,6 +20,34 @@ type HardwareProfile struct {
 	Hashrates      map[string]float64 `yaml:"hashrates"`
 	Source         string             `yaml:"source,omitempty"`
 	LastReviewed   string             `yaml:"last_reviewed,omitempty"`
+
+	// reviewedAt is LastReviewed parsed by init, which refuses a profile
+	// without a valid date.
+	reviewedAt time.Time
+}
+
+// Baseline is where a profile's hashrates and price came from, and when they
+// were last checked against that source.
+type Baseline struct {
+	Source   string
+	Reviewed time.Time
+}
+
+// Stale reports whether the baseline was last reviewed more than a calendar
+// year before now. GPU generations and rental prices both move within a
+// year, and both errors point the same way: an old baseline describes a
+// slower, pricier attacker than the one renting hardware today, so the crack
+// time and cost it reports are overstated.
+func (b Baseline) Stale(now time.Time) bool {
+	return now.After(b.Reviewed.AddDate(1, 0, 0))
+}
+
+// BaselineFor returns the provenance of the profile hw resolves to, with the
+// same fallback as the rate and cost lookups so all three describe one
+// profile.
+func BaselineFor(hw string) Baseline {
+	p := lookupProfile(hw)
+	return Baseline{Source: p.Source, Reviewed: p.reviewedAt}
 }
 
 type profilesFile struct {
@@ -75,6 +104,14 @@ func init() {
 				panic(fmt.Errorf("cost: profile %q must have a positive %s hashrate", name, algo))
 			}
 		}
+		// The CLI reports this date and warns when it is old, so a profile
+		// without one would ship numbers nobody can age.
+		reviewed, err := time.Parse(time.DateOnly, p.LastReviewed)
+		if err != nil {
+			panic(fmt.Errorf("cost: profile %q needs last_reviewed as YYYY-MM-DD: %w", name, err))
+		}
+		p.reviewedAt = reviewed
+		f.Profiles[name] = p
 	}
 	Profiles = f.Profiles
 }
