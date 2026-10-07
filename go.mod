@@ -2,6 +2,8 @@ module github.com/kanywst/brtc/v2
 
 go 1.25.0
 
+toolchain go1.26.8
+
 require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/mattn/go-isatty v0.0.24
