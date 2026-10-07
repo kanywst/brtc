@@ -23,18 +23,13 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v7
       with:
-        # Ahead of go.mod's `go 1.25.0`, which is a floor and not a pin. The
-        # govulncheck step below installs @latest, and golang.org/x/vuln v1.8.0
-        # requires go >= 1.26; setup-go sets GOTOOLCHAIN=local, so a 1.25
-        # toolchain cannot fetch a newer one to satisfy that and the install
-        # fails outright. Every PR went red on it, none of them for anything in
-        # their own diff.
-        go-version: '1.26'
-        # Without this, setup-go reuses whatever 1.26.x the runner image ships,
-        # which lags the security releases. govulncheck then reports stdlib
-        # vulnerabilities that are already fixed upstream and CI fails on a
-        # stale toolchain rather than on anything in the diff.
-        check-latest: true
+        # go.mod's toolchain line: the Go release.yml builds the shipped
+        # binaries with, so the tests and the govulncheck scan below cover the
+        # stdlib that actually ships. A floating '1.26' here hid that releases
+        # were built with go1.25.0. The toolchain has to stay >= 1.26, because
+        # golang.org/x/vuln v1.8.0 requires it and setup-go sets
+        # GOTOOLCHAIN=local, so an older one cannot fetch a newer one.
+        go-version-file: go.mod
         cache: true
 
     - name: Install dependencies
@@ -47,9 +42,11 @@ jobs:
         args: --timeout=5m
 
     - name: Run govulncheck
-      run: |
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck ./...
+      # Runs on the Go set up above. golang/govulncheck-action is avoided
+      # on purpose: its bundled setup-go ignores the toolchain directive and
+      # defaults to "stable", so it would scan a stdlib the release never
+      # ships.
+      run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
     - name: Build
       run: go build -v ./...
