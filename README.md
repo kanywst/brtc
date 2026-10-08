@@ -183,6 +183,19 @@ Because a gate that could not be evaluated must not report a pass, `--fail-on-br
 
 When `--fail-under-time` is set, `brtc` also reports the **minimum password length** needed to survive that threshold on the chosen hardware (shown as `Recommended Len` in the TUI and `recommended_chars` in JSON) — turning the gate into actionable advice.
 
+#### GitHub Actions
+
+To run the same gates in a workflow without installing Go yourself, use [`kanywst/brtc-action`](https://github.com/kanywst/brtc-action) ([Marketplace](https://github.com/marketplace/actions/brtc-action)). It installs brtc, passes the secret over stdin, fails the job when a gate trips, and exposes the JSON fields (or a SARIF file) as step outputs:
+
+```yaml
+- uses: kanywst/brtc-action@v2
+  with:
+    password: ${{ secrets.SERVICE_PASSWORD }}
+    algorithm: bcrypt
+    cost: "12"
+    fail-under-time: 1y
+```
+
 #### Pattern-aware strength (`--zxcvbn`) and breach check (`--hibp`)
 
 `brtc`'s default estimator is naive — it counts character classes and treats every position as independent, so `P@ssw0rd!` looks "strong" to it. Pass `--zxcvbn` to use the built-in pattern analyzer instead, which recognizes the dictionary word, l33t substitutions, and structure:
