@@ -97,6 +97,8 @@ Or pipe it in:
 echo "P@ssw0rd123!" | brtc
 ```
 
+Surrounding whitespace is trimmed, so the newline `echo` adds does not count. brtc analyzes one password per run and rejects stdin that holds more than one line, rather than scoring the lines as a single long password.
+
 ### Options
 
 | Flag                | Default    | Description                                                                                                                                         |

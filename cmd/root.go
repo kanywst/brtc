@@ -80,6 +80,23 @@ func staleBaselineWarnings(profiles []string, at time.Time) []string {
 	return lines
 }
 
+// readStdinPassword reads the password piped on stdin, trimming the
+// surrounding whitespace an `echo` or a heredoc adds. More than one line is
+// rejected: the lines used to be analyzed as a single password, so piping a
+// file of weak passwords produced one long string with hundreds of bits of
+// entropy and --fail-under-time reported a pass for every one of them.
+func readStdinPassword(r io.Reader) (string, error) {
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return "", fmt.Errorf("reading the password from stdin: %w", err)
+	}
+	pw := strings.TrimSpace(string(b))
+	if strings.ContainsAny(pw, "\r\n") {
+		return "", fmt.Errorf("stdin holds more than one line; brtc analyzes a single password per run, so pipe one password at a time")
+	}
+	return pw, nil
+}
+
 var (
 	hwProfile        string
 	algo             string
@@ -184,9 +201,9 @@ var rootCmd = &cobra.Command{
 		} else {
 			stat, _ := os.Stdin.Stat()
 			if (stat.Mode() & os.ModeCharDevice) == 0 {
-				b, err := io.ReadAll(os.Stdin)
-				if err == nil && len(b) > 0 {
-					password = strings.TrimSpace(string(b))
+				var err error
+				if password, err = readStdinPassword(os.Stdin); err != nil {
+					return err
 				}
 			}
 		}
