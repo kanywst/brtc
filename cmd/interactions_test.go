@@ -86,7 +86,7 @@ func TestFlagInteractions(t *testing.T) {
 		// neither, so the report named a work factor or a memory size the
 		// calculation never applied.
 		{"cost is rejected for a single-pass algo", []string{"pw", "-o", "json", "--algo", "md5", "--cost", "12"}, "--cost does not apply to md5"},
-		{"cost error names the algos it applies to", []string{"pw", "-o", "json", "--algo", "ntlm", "--cost", "12"}, "applies to: argon2id, bcrypt"},
+		{"cost error names the algos it applies to", []string{"pw", "-o", "json", "--algo", "ntlm", "--cost", "12"}, "applies to: argon2id, bcrypt, pbkdf2-sha256"},
 		{"memory is rejected for a non-argon2id algo", []string{"pw", "-o", "json", "--algo", "bcrypt", "--memory", "1g"}, "--memory does not apply to bcrypt"},
 		{"cost below bcrypt's minimum is rejected", []string{"pw", "-o", "json", "--algo", "bcrypt", "--cost", "3"}, "below bcrypt's minimum of 4"},
 		{"cost above bcrypt's maximum is rejected", []string{"pw", "-o", "json", "--algo", "bcrypt", "--cost", "99"}, "above bcrypt's maximum of 31"},
@@ -96,6 +96,14 @@ func TestFlagInteractions(t *testing.T) {
 		// algorithm that has no work factor.
 		{"an unset cost is fine for a single-pass algo", []string{"pw", "-o", "json", "--algo", "md5"}, ""},
 		{"bcrypt's boundary costs are accepted", []string{"pw", "-o", "json", "--algo", "bcrypt", "--cost", "31"}, ""},
+		// PBKDF2's strength is its iteration count, and any default would
+		// either be meaningless (10) or overstate a weaker deployment and let a
+		// gate pass, so an unset --cost is an error rather than a guess.
+		{"pbkdf2-sha256 requires an explicit cost", []string{"pw", "-o", "json", "--algo", "pbkdf2-sha256"}, "--algo pbkdf2-sha256 needs an explicit --cost"},
+		{"pbkdf2-sha256 requires a cost under --all-hw too", []string{"pw", "--all-hw", "--algo", "pbkdf2-sha256"}, "needs an explicit --cost"},
+		{"pbkdf2-sha256 rejects memory", []string{"pw", "-o", "json", "--algo", "pbkdf2-sha256", "--cost", "600000", "--memory", "64m"}, "--memory does not apply to pbkdf2-sha256"},
+		{"cost below pbkdf2-sha256's minimum is rejected", []string{"pw", "-o", "json", "--algo", "pbkdf2-sha256", "--cost", "0"}, "below pbkdf2-sha256's minimum of 1"},
+		{"pbkdf2-sha256 accepts an iteration count", []string{"pw", "-o", "json", "--algo", "pbkdf2-sha256", "--cost", "600000"}, ""},
 		{"argon2id accepts memory", []string{"pw", "-o", "json", "--algo", "argon2id", "--memory", "128m"}, ""},
 	}
 	for _, tt := range tests {

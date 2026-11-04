@@ -290,6 +290,9 @@ var rootCmd = &cobra.Command{
 		// — but a tool whose output is read by a gate should not name
 		// parameters it did not apply.
 		tuning := cost.TuningFor(algo)
+		if tuning.RequiresWorkFactor && !cmd.Flags().Changed("cost") {
+			return fmt.Errorf("--algo %s needs an explicit --cost (its iteration count); no default is safe to assume", algo)
+		}
 		if cmd.Flags().Changed("cost") {
 			switch {
 			case !tuning.UsesWorkFactor:
@@ -520,7 +523,7 @@ func init() {
 		"Attacker's hardware profile ("+strings.Join(cost.ProfileNames(), ", ")+")")
 	rootCmd.Flags().StringVar(&algo, "algo", "bcrypt",
 		"Server-side hash algorithm ("+strings.Join(cost.AlgoNames(), ", ")+")")
-	rootCmd.Flags().IntVar(&workFactor, "cost", 10, "Work factor (bcrypt) or time iterations (argon2id)")
+	rootCmd.Flags().IntVar(&workFactor, "cost", 10, "Work factor (bcrypt), time iterations (argon2id) or iteration count (pbkdf2-sha256, required)")
 	rootCmd.Flags().StringVar(&memoryStr, "memory", "", "Argon2id memory parameter (e.g. 64m, 128m, 1g). Defaults to the profile baseline (64MB)")
 	rootCmd.Flags().StringVar(&externalGuesses, "guesses", "", "Override entropy with an external guess count from zxcvbn or similar (e.g. 1e10, 12345)")
 	rootCmd.Flags().BoolVar(&useZxcvbn, "zxcvbn", false, "Estimate strength with the built-in zxcvbn pattern analyzer instead of naive R^L entropy (catches dictionary words, keyboard walks, l33t)")

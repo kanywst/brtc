@@ -200,6 +200,9 @@ type AlgoTuning struct {
 	MinWorkFactor  int
 	MaxWorkFactor  int // 0 means no upper bound
 	UsesMemory     bool
+	// RequiresWorkFactor means no default work factor is a fair guess, so
+	// the CLI demands an explicit --cost instead of applying its default.
+	RequiresWorkFactor bool
 }
 
 // TuningFor returns the tuning parameters algo consumes. An unknown algorithm
@@ -217,6 +220,13 @@ func TuningFor(algo string) AlgoTuning {
 		// Argon2 caps t at 2^32-1, far past anything worth modeling, so only
 		// the floor is enforced. t=0 is not a valid Argon2 parameter.
 		return AlgoTuning{UsesWorkFactor: true, MinWorkFactor: 1, UsesMemory: true}
+	case "pbkdf2-sha256":
+		// The iteration count is the whole of PBKDF2's strength, and real
+		// deployments range from 1,000 to well over 1,000,000. The CLI's
+		// --cost default of 10 is meaningless here, and any larger default
+		// would overstate the crack time for a system that used fewer
+		// iterations and let a gate pass, so --cost is required.
+		return AlgoTuning{UsesWorkFactor: true, MinWorkFactor: 1, RequiresWorkFactor: true}
 	default:
 		if _, known := Profiles[fallbackProfile].Hashrates[key]; !known {
 			// CalculateHashRate routes an unknown algorithm through the
@@ -284,6 +294,9 @@ func CalculateHashRate(hw, algo string, workFactor, memoryMB int) float64 {
 			memFactor = float64(memoryMB) / float64(argon2BaselineMemoryMB)
 		}
 		return base / (timeFactor * memFactor)
+	case "pbkdf2-sha256":
+		// The baseline is per iteration, so the cost is linear in the count.
+		return base / float64(workFactor)
 	default:
 		return base
 	}
