@@ -11,7 +11,7 @@ import (
 // requiredAlgos is the algorithm set the CLI advertises via --algo, kept
 // hand-written on purpose: AlgoNames reads it off hashrates.yaml, so a
 // generated list checked against itself would prove nothing.
-var requiredAlgos = []string{"md5", "sha1", "sha256", "ntlm", "bcrypt", "argon2id"}
+var requiredAlgos = []string{"md5", "sha1", "sha256", "ntlm", "bcrypt", "argon2id", "pbkdf2-sha256"}
 
 func TestCalculateHashRate_KnownProfile(t *testing.T) {
 	got := CalculateHashRate("rtx-4090", "md5", 10, 0)
@@ -78,6 +78,17 @@ func TestTuningFor(t *testing.T) {
 	// argon2id takes both, and has no upper bound worth modeling.
 	if got := TuningFor("ARGON2ID"); !got.UsesWorkFactor || got.MinWorkFactor != 1 || got.MaxWorkFactor != 0 || !got.UsesMemory {
 		t.Errorf("TuningFor(ARGON2ID) = %+v", got)
+	}
+
+	// pbkdf2-sha256 takes an iteration count, no memory, and has no default
+	// worth assuming, so the CLI must demand it.
+	if got := TuningFor("pbkdf2-sha256"); !got.UsesWorkFactor || got.MinWorkFactor != 1 || got.MaxWorkFactor != 0 || got.UsesMemory || !got.RequiresWorkFactor {
+		t.Errorf("TuningFor(pbkdf2-sha256) = %+v", got)
+	}
+	for _, algo := range []string{"bcrypt", "argon2id"} {
+		if TuningFor(algo).RequiresWorkFactor {
+			t.Errorf("TuningFor(%s) requires a work factor; its --cost default must keep working", algo)
+		}
 	}
 
 	// The single-pass algorithms take neither, which is what lets the CLI
@@ -302,5 +313,29 @@ func TestBaselineStale(t *testing.T) {
 		if got := b.Stale(tt.now); got != tt.want {
 			t.Errorf("Stale(%s) = %v, want %v", tt.now.Format(time.RFC3339), got, tt.want)
 		}
+	}
+}
+
+func TestCalculateHashRate_PBKDF2ScalesByIterations(t *testing.T) {
+	for name, p := range Profiles {
+		base := p.Hashrates["pbkdf2-sha256"]
+		// The YAML derives the per-iteration rate as two SHA-256 compressions
+		// per iteration; a profile edited by hand without keeping that ratio
+		// would silently model a different attacker than the comment claims.
+		if want := p.Hashrates["sha256"] / 2; base != want {
+			t.Errorf("%s pbkdf2-sha256 baseline = %v, want half its sha256 rate %v", name, base, want)
+		}
+	}
+
+	base := Profiles["rtx-4090"].Hashrates["pbkdf2-sha256"]
+	if got := CalculateHashRate("rtx-4090", "pbkdf2-sha256", 1, 0); got != base {
+		t.Errorf("pbkdf2-sha256 1 iteration = %v, want baseline %v", got, base)
+	}
+	if got, want := CalculateHashRate("rtx-4090", "pbkdf2-sha256", 600000, 0), base/600000; got != want {
+		t.Errorf("pbkdf2-sha256 600000 iterations = %v, want %v", got, want)
+	}
+	// Floored for direct callers, like the other tunable algorithms.
+	if got := CalculateHashRate("rtx-4090", "pbkdf2-sha256", 0, 0); got != base {
+		t.Errorf("pbkdf2-sha256 0 iterations = %v, want floor to baseline %v", got, base)
 	}
 }

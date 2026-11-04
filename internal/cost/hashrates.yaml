@@ -13,6 +13,14 @@
 #            memory ratio at runtime. Argon2 GPU throughput is memory-bound
 #            and parameter-dependent (no clean per-GPU published figure), so
 #            these baselines are modeled, not measured.
+#   pbkdf2-sha256 baseline is per iteration (PBKDF2-HMAC-SHA256, 32-byte
+#            output, so a single block). It is modeled, not measured: with
+#            the HMAC inner/outer pads precomputed once per guess, every
+#            iteration costs two SHA-256 compressions against one for a raw
+#            sha256 guess, so the baseline is half that profile's sha256
+#            rate. That ignores the one-off per-guess setup, which errs
+#            toward a faster attacker, the safe side for a gate.
+#            CalculateHashRate divides linearly by the iteration count.
 #   cost_per_hour_usd = 0 means "owned hardware" (no rental cost).
 #
 # 2026 modeling note: password cracking is 32-bit integer/bitwise work, not
@@ -31,6 +39,7 @@ profiles:
       md5: 220600000000
       sha1: 70200000000
       sha256: 28350000000
+      pbkdf2-sha256: 14175000000
       ntlm: 340100000000
       bcrypt: 304800
       argon2id: 1340
@@ -44,6 +53,7 @@ profiles:
       md5: 164100000000
       sha1: 50600000000
       sha256: 21980000000
+      pbkdf2-sha256: 10990000000
       ntlm: 288500000000
       bcrypt: 184000
       argon2id: 1000
@@ -57,6 +67,7 @@ profiles:
       md5: 74200000000
       sha1: 23000000000
       sha256: 10000000000
+      pbkdf2-sha256: 5000000000
       ntlm: 114500000000
       bcrypt: 96000
       argon2id: 450
@@ -70,6 +81,7 @@ profiles:
       md5: 22000000000
       sha1: 6800000000
       sha256: 3000000000
+      pbkdf2-sha256: 1500000000
       ntlm: 38700000000
       bcrypt: 24000
       argon2id: 120
@@ -83,6 +95,7 @@ profiles:
       md5: 34000000000
       sha1: 11000000000
       sha256: 4500000000
+      pbkdf2-sha256: 2250000000
       ntlm: 59000000000
       bcrypt: 22700
       argon2id: 80
@@ -96,6 +109,7 @@ profiles:
       md5: 8000000000
       sha1: 2500000000
       sha256: 1500000000
+      pbkdf2-sha256: 750000000
       ntlm: 14000000000
       bcrypt: 5500
       argon2id: 60
@@ -109,6 +123,7 @@ profiles:
       md5: 24000000000
       sha1: 7500000000
       sha256: 4500000000
+      pbkdf2-sha256: 2250000000
       ntlm: 42000000000
       bcrypt: 16000
       argon2id: 180
@@ -122,6 +137,7 @@ profiles:
       md5: 1000000000
       sha1: 320000000
       sha256: 200000000
+      pbkdf2-sha256: 100000000
       ntlm: 1760000000
       bcrypt: 5000
       argon2id: 50
@@ -135,6 +151,7 @@ profiles:
       md5: 50000000
       sha1: 16000000
       sha256: 10000000
+      pbkdf2-sha256: 5000000
       ntlm: 88000000
       bcrypt: 200
       argon2id: 3
@@ -151,6 +168,7 @@ profiles:
       md5: 1000000000000
       sha1: 320000000000
       sha256: 136000000000
+      pbkdf2-sha256: 68000000000
       ntlm: 1760000000000
       bcrypt: 1200000
       argon2id: 10000

@@ -26,7 +26,7 @@ Instead of just telling you a password is "Weak" or "Strong", `brtc` pits your s
 
 - **Financial Cost Visualization:** Uses current spot prices for AWS or GPU providers to calculate the total USD cost to crack your hash.
 - **Hardware Simulation:** Select between various physical and cloud profiles (`rtx-5090`, `rtx-4090`, `rx-7900xtx`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`) to see how hardware scales the threat. Baselines are 2026 hashcat numbers (RTX 5090 Blackwell is the current top cracker).
-- **Hash Algorithms:** Simulates the braking power of `md5`, `sha1`, `sha256`, `ntlm`, `bcrypt`, and `argon2id` with adjustable work factors.
+- **Hash Algorithms:** Simulates the braking power of `md5`, `sha1`, `sha256`, `ntlm`, `bcrypt`, `argon2id`, and `pbkdf2-sha256` with adjustable work factors.
 - **Pattern-Aware Strength:** Pass `--zxcvbn` to estimate real guessability with the built-in [zxcvbn](https://github.com/dropbox/zxcvbn) analyzer instead of naive `R^L` entropy, or `--hibp` to flag passwords found in Have I Been Pwned via privacy-preserving k-anonymity.
 - **Terminal UI:** Color-coded output with a one-line verdict banner and an entropy gauge, built on [Lipgloss](https://github.com/charmbracelet/lipgloss).
 - **CI/CD Gatekeeper:** Break the build on `--fail-under-time` (cracked faster than e.g. `1y`, `30d`), `--fail-under-entropy` (below e.g. `60` bits), or `--fail-on-breach` (found in Have I Been Pwned) — alone or combined. Also supports standard `json` and `sarif` outputs for tooling.
@@ -104,8 +104,8 @@ Surrounding whitespace is trimmed, so the newline `echo` adds does not count. br
 | Flag                | Default    | Description                                                                                                                                         |
 | ------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--hw`              | `rtx-4090` | The attacker's hardware profile (`rtx-5090`, `rtx-4090`, `rx-7900xtx`, `rtx-3060`, `gtx-1080ti`, `mac-m3-max`, `mac-m3`, `cpu-standard`, `aws-p5.48xlarge`, `raspberry-pi-4`). An unrecognized name is an error, not a fallback — a typo would otherwise model slower hardware and let a `--fail-*` gate pass |
-| `--algo`            | `bcrypt`   | The target hash algorithm (`md5`, `sha1`, `sha256`, `ntlm`, `bcrypt`, `argon2id`). Unrecognized names are rejected for the same reason as `--hw`: they used to be modeled as `bcrypt`, the slowest algorithm here, so a typo let a `--fail-*` gate pass |
-| `--cost`            | `10`       | Work factor (bcrypt, `4`–`31`) or time iterations (argon2id, `1`+). Rejected for the single-pass algorithms, which have no work factor, and rejected outside the range the algorithm can represent — brtc would otherwise report a work factor it clamped away |
+| `--algo`            | `bcrypt`   | The target hash algorithm (`md5`, `sha1`, `sha256`, `ntlm`, `bcrypt`, `argon2id`, `pbkdf2-sha256`). Unrecognized names are rejected for the same reason as `--hw`: they used to be modeled as `bcrypt`, the slowest algorithm here, so a typo let a `--fail-*` gate pass |
+| `--cost`            | `10`       | Work factor (bcrypt, `4`–`31`), time iterations (argon2id, `1`+) or iteration count (pbkdf2-sha256, `1`+). **Required for pbkdf2-sha256**: its strength is the iteration count, and no default is safe to assume. Rejected for the single-pass algorithms, which have no work factor, and rejected outside the range the algorithm can represent — brtc would otherwise report a work factor it clamped away |
 | `--memory`          | `""`       | Argon2id memory parameter (e.g. `64m`, `128m`, `1g`). Defaults to the profile baseline (64MB). Rejected for any other algorithm, which would silently discard it |
 | `--guesses`         | `""`       | Override entropy with an external guess count from zxcvbn or similar (e.g. `1e10`, `12345`). Makes the password argument optional                   |
 | `--zxcvbn`          | `false`    | Use the built-in zxcvbn pattern analyzer instead of naive `R^L` entropy — catches dictionary words, keyboard walks, and l33t (`P@ssw0rd!` → seconds) |
@@ -229,6 +229,13 @@ Argon2id is a memory-hard function. Bumping the memory parameter is a defender's
 brtc --algo argon2id --memory 64m  -o json "P@ssw0rd!" | jq .cost_usd
 brtc --algo argon2id --memory 256m -o json "P@ssw0rd!" | jq .cost_usd
 brtc --algo argon2id --memory 1g   -o json "P@ssw0rd!" | jq .cost_usd
+```
+
+PBKDF2-HMAC-SHA256 (Django's default hasher, and what OWASP recommends at 600,000 iterations) takes its iteration count through `--cost`, which is required for it. The per-iteration rate is modeled as half the profile's `sha256` rate (two SHA-256 compressions per iteration), not measured:
+
+```bash
+brtc --algo pbkdf2-sha256 --cost 600000 "P@ssw0rd!"
+brtc --algo pbkdf2-sha256 --cost 1000   "P@ssw0rd!"   # a legacy deployment
 ```
 
 ## Development
