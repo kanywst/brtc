@@ -145,6 +145,8 @@ The action is versioned with brtc itself: every brtc release from v2.4.1 on is a
 - `@vX.Y.Z`: pin to a specific brtc release, CLI and action together.
 - `@main`: bleeding edge, may break.
 
+The runner fetches the action as a source tarball with no git history, so only a `@vX.Y.Z` ref tells the action which version it is building. Under `@v2`, `@main` or a commit SHA, `brtc --version` reports `dev`, though the code is exactly the release or commit the ref points at.
+
 **A new brtc release can change your numbers** when you track `@v2`: hardware baselines, new validation and new defaults all flow through. Pin `@vX.Y.Z` if a run has to keep producing the same numbers over time.
 
 brtc v1 is not available from this repository. Workflows that need it can stay on `kanywst/brtc-action@v1`, which keeps working after that repository is archived.
