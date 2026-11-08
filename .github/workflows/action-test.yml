@@ -1,0 +1,443 @@
+name: Action self-test
+
+# Exercises the composite action in action.yml. Every job but `published`
+# runs it as `uses: ./`, which builds brtc from the commit under test.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  weak-fails-gate:
+    name: Weak password should fail the 1y gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: brtc
+        uses: ./
+        continue-on-error: true
+        with:
+          # md5 + 3-char password is essentially instant on rtx-4090, so
+          # the gate must trip. Bcrypt with shortpass would actually take
+          # ~30 years and silently pass.
+          password: abc
+          algorithm: md5
+          hardware: rtx-4090
+          fail-under-time: 1y
+      - name: Assert the gate failed
+        env:
+          OUTCOME: ${{ steps.brtc.outcome }}
+          BITS: ${{ steps.brtc.outputs.entropy-bits }}
+        run: |
+          if [[ "$OUTCOME" != "failure" ]]; then
+            echo "::error::expected failure for md5/abc under 1y, got ${OUTCOME}"
+            exit 1
+          fi
+          # A broken action also produces `failure`, so check brtc actually
+          # ran: it still prints its report before failing the gate.
+          if [[ -z "$BITS" ]]; then
+            echo "::error::the step failed before brtc produced a report"
+            exit 1
+          fi
+
+  multiline-secret-fails:
+    name: Multi-line secret fails instead of passing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: brtc
+        uses: ./
+        continue-on-error: true
+        with:
+          # Each line fails a 1y gate on its own; joined into one string
+          # they used to score ~180 bits and pass (brtc v2.3.3 rejects it).
+          password: |
+            123456
+            password
+            qwerty
+            letmein
+          fail-under-time: 1y
+      - name: Assert brtc rejected the input
+        env:
+          OUTCOME: ${{ steps.brtc.outcome }}
+          BITS: ${{ steps.brtc.outputs.entropy-bits }}
+        run: |
+          if [[ "$OUTCOME" != "failure" ]]; then
+            echo "::error::expected a multi-line secret to fail, got ${OUTCOME}"
+            exit 1
+          fi
+          # A gate failure would still report entropy; the rejection must
+          # stop brtc before it scores the joined string.
+          if [[ -n "$BITS" ]]; then
+            echo "::error::brtc scored the multi-line secret (${BITS} bits) instead of rejecting it"
+            exit 1
+          fi
+          # Empty outputs and a failed step are also what a broken install
+          # looks like, so confirm the installed brtc fails for this reason.
+          if ! command -v brtc >/dev/null; then
+            echo "::error::brtc was not installed, so the failure above proves nothing"
+            exit 1
+          fi
+          msg=$(printf '123456\npassword\n' | brtc --fail-under-time 1y 2>&1 >/dev/null || true)
+          if [[ "$msg" != *"more than one line"* ]]; then
+            echo "::error::expected brtc to reject multi-line stdin, got: ${msg}"
+            exit 1
+          fi
+
+  strong-passes-gate:
+    name: Long passphrase passes the 1m gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: brtc
+        uses: ./
+        with:
+          password: "Correct-Horse-Battery-Staple-Plus-2026!"
+          algorithm: bcrypt
+          cost: "12"
+          hardware: rtx-4090
+          fail-under-time: 1m
+      - name: Show outputs and assert they are populated
+        env:
+          COST_USD: ${{ steps.brtc.outputs.cost-usd }}
+          TIME_S: ${{ steps.brtc.outputs.time-to-crack-seconds }}
+          ENTROPY: ${{ steps.brtc.outputs.entropy-bits }}
+        run: |
+          echo "cost-usd=${COST_USD}"
+          echo "time-to-crack-seconds=${TIME_S}"
+          echo "entropy-bits=${ENTROPY}"
+          if [[ -z "$COST_USD" ]]; then
+            echo "::error::cost-usd output was empty"
+            exit 1
+          fi
+
+  guesses-input:
+    name: External guess count populates cost-usd
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: brtc
+        uses: ./
+        with:
+          # No password: feed a fixed guess count (as zxcvbn would) and
+          # assert brtc translates it into a non-zero cost.
+          guesses: "1e12"
+          algorithm: bcrypt
+          cost: "12"
+          hardware: rtx-4090
+      - name: Assert cost-usd is non-zero
+        env:
+          COST_USD: ${{ steps.brtc.outputs.cost-usd }}
+        run: |
+          echo "cost-usd=${COST_USD}"
+          if [[ -z "$COST_USD" || "$COST_USD" == "0" ]]; then
+            echo "::error::expected non-zero cost-usd for guesses=1e12, got '${COST_USD}'"
+            exit 1
+          fi
+
+  entropy-gate:
+    name: Entropy gate fails a weak secret and passes a strong one
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: weak
+        uses: ./
+        continue-on-error: true
+        with:
+          # 5 lowercase chars is 23.5 bits, well under the 60-bit threshold.
+          # Unlike the time gate this is independent of hardware and algorithm.
+          password: short
+          fail-under-entropy: "60"
+      - id: strong
+        uses: ./
+        with:
+          password: "Correct-Horse-Battery-Staple-Plus-2026!"
+          fail-under-entropy: "60"
+      - name: Assert the gate tripped only on the weak secret
+        env:
+          WEAK: ${{ steps.weak.outcome }}
+          STRONG: ${{ steps.strong.outcome }}
+          STRONG_BITS: ${{ steps.strong.outputs.entropy-bits }}
+        run: |
+          if [[ "$WEAK" != "failure" ]]; then
+            echo "::error::expected failure for a 23.5-bit secret under 60 bits, got ${WEAK}"
+            exit 1
+          fi
+          if [[ "$STRONG" != "success" ]]; then
+            echo "::error::expected success for a 39-char passphrase under 60 bits, got ${STRONG}"
+            exit 1
+          fi
+          echo "entropy-bits=${STRONG_BITS}"
+
+  breach-gate:
+    name: Breach gate fails a known-pwned secret
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: brtc
+        uses: ./
+        continue-on-error: true
+        with:
+          # Not a real credential: a corpus password with millions of HIBP
+          # hits. Asserting only on the outcome keeps this robust if HIBP is
+          # unreachable, since the gate fails closed in that case too.
+          password: "P@ssw0rd"
+          fail-on-breach: "true"
+      - name: Assert the gate failed
+        env:
+          OUTCOME: ${{ steps.brtc.outcome }}
+          BREACHES: ${{ steps.brtc.outputs.breach-count }}
+          BITS: ${{ steps.brtc.outputs.entropy-bits }}
+        run: |
+          echo "breach-count=${BREACHES}"
+          if [[ "$OUTCOME" != "failure" ]]; then
+            echo "::error::expected failure for a known-pwned password, got ${OUTCOME}"
+            exit 1
+          fi
+          # A broken action also produces `failure`, so check brtc actually
+          # ran: it prints its report before the gate decides. This stays
+          # green if HIBP is unreachable, where the gate fails closed with a
+          # report but no breach count.
+          if [[ -z "$BITS" ]]; then
+            echo "::error::the step failed before brtc produced a report"
+            exit 1
+          fi
+
+  all-hw-ignores-gates:
+    name: all-hw warns about the gates instead of failing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: brtc
+        uses: ./
+        with:
+          # brtc rejects the gates alongside --all-hw, so the action drops them
+          # with a warning. A weak secret that every gate would trip must still
+          # come back green here.
+          password: short
+          all-hw: "true"
+          fail-under-time: 1y
+          fail-under-entropy: "60"
+          fail-on-breach: "true"
+      - name: Assert the comparison ran
+        env:
+          RAW: ${{ steps.brtc.outputs.raw-json }}
+        run: |
+          # --all-hw emits an array, one row per hardware profile.
+          echo "$RAW" | jq -e 'type == "array" and length >= 2' > /dev/null
+
+  sarif-output:
+    name: SARIF mode writes an uploadable file
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: brtc
+        uses: ./
+        with:
+          password: abc
+          algorithm: md5
+          output: sarif
+      - name: Assert the SARIF file exists and is valid SARIF
+        env:
+          SARIF_FILE: ${{ steps.brtc.outputs.sarif-file }}
+        run: |
+          echo "sarif-file=${SARIF_FILE}"
+          if [[ -z "$SARIF_FILE" || ! -s "$SARIF_FILE" ]]; then
+            echo "::error::sarif-file output missing or empty"
+            exit 1
+          fi
+          # A SARIF 2.1.0 document has a top-level `runs` array.
+          jq -e '.runs | length >= 1' "$SARIF_FILE"
+
+  cost-applicability:
+    name: cost is forwarded only when set
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # md5 has no work factor, so brtc rejects an explicit --cost for it. The
+      # action used to pass --cost on every run from a default of 10, which
+      # made this failure fire for callers who never set the input.
+      - id: unset
+        uses: ./
+        with:
+          password: abc
+          algorithm: md5
+      - id: explicit
+        uses: ./
+        continue-on-error: true
+        with:
+          password: abc
+          algorithm: md5
+          cost: "12"
+      - name: Assert only the explicit cost is rejected
+        env:
+          UNSET: ${{ steps.unset.outcome }}
+          UNSET_BITS: ${{ steps.unset.outputs.entropy-bits }}
+          EXPLICIT: ${{ steps.explicit.outcome }}
+        run: |
+          if [[ "$UNSET" != "success" ]]; then
+            echo "::error::md5 without a cost input should run, got ${UNSET}"
+            exit 1
+          fi
+          if [[ -z "$UNSET_BITS" ]]; then
+            echo "::error::md5 without a cost input produced no report"
+            exit 1
+          fi
+          if [[ "$EXPLICIT" != "failure" ]]; then
+            echo "::error::md5 with an explicit cost should fail, got ${EXPLICIT}"
+            exit 1
+          fi
+
+  pbkdf2-cost:
+    name: pbkdf2-sha256 requires an explicit cost
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      # brtc v2.4.0 rejects pbkdf2-sha256 without --cost. The action must not
+      # paper over that with its bcrypt/argon2id fallback of 10.
+      - id: unset
+        uses: ./
+        continue-on-error: true
+        with:
+          password: abc
+          algorithm: pbkdf2-sha256
+      - id: explicit
+        uses: ./
+        with:
+          password: abc
+          algorithm: PBKDF2-SHA256
+          cost: "600000"
+      - name: Assert only the explicit cost runs
+        env:
+          UNSET: ${{ steps.unset.outcome }}
+          EXPLICIT_JSON: ${{ steps.explicit.outputs.raw-json }}
+        run: |
+          if [[ "$UNSET" != "failure" ]]; then
+            echo "::error::pbkdf2-sha256 without a cost input should fail, got ${UNSET}"
+            exit 1
+          fi
+          wf=$(jq -r '.work_factor' <<<"$EXPLICIT_JSON")
+          if [[ "$wf" != "600000" ]]; then
+            echo "::error::expected work_factor 600000, got '${wf}'"
+            exit 1
+          fi
+
+  brtc-version-override:
+    name: brtc-version installs a released brtc instead
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: brtc
+        uses: ./
+        with:
+          password: abc
+          algorithm: md5
+          brtc-version: v2.4.0
+      - name: Assert the requested release ran
+        env:
+          BITS: ${{ steps.brtc.outputs.entropy-bits }}
+        run: |
+          if [[ -z "$BITS" ]]; then
+            echo "::error::brtc-version v2.4.0 produced no report"
+            exit 1
+          fi
+          # go install records the module version, which brtc reports.
+          v=$(brtc --version)
+          if [[ "$v" != *"v2.4.0"* ]]; then
+            echo "::error::expected brtc v2.4.0, got: ${v}"
+            exit 1
+          fi
+      - id: v1
+        uses: ./
+        continue-on-error: true
+        with:
+          password: abc
+          brtc-version: v1.4.0
+      - name: Assert a v1 brtc-version is rejected
+        env:
+          OUTCOME: ${{ steps.v1.outcome }}
+        run: |
+          if [[ "$OUTCOME" != "failure" ]]; then
+            echo "::error::expected brtc-version v1.4.0 to fail, got ${OUTCOME}"
+            exit 1
+          fi
+
+  published:
+    name: The published v2 tag resolves and runs
+    # Manual only: this tests what `uses: kanywst/brtc@v2` gets today, not
+    # the change under review, so it has no business gating a pull request.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - id: brtc
+        # Deliberately the floating tag, since moving it is what is being checked.
+        uses: kanywst/brtc@v2  # zizmor: ignore[unpinned-uses]
+        continue-on-error: true
+        with:
+          password: abc
+          algorithm: md5
+          fail-under-time: 1y
+      - name: Assert brtc ran and the gate tripped
+        env:
+          OUTCOME: ${{ steps.brtc.outcome }}
+          BITS: ${{ steps.brtc.outputs.entropy-bits }}
+        run: |
+          brtc --version
+          if [[ "$OUTCOME" != "failure" || -z "$BITS" ]]; then
+            echo "::error::expected a tripped gate with a report, got outcome=${OUTCOME} bits='${BITS}'"
+            exit 1
+          fi
+
+  lint:
+    name: Lint action and workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: actionlint
+        run: |
+          set -euo pipefail
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color
+      - name: zizmor
+        # Pinned like actionlint above. Unpinned, a new zizmor release turns
+        # CI red on a commit that did not touch any workflow, which is what
+        # v1.30.0 did here: it added a self-repository audit asking for
+        # GitHub's `uses: $/` form. That syntax landed in July 2026 and
+        # actionlint does not know it yet — the newest release, v1.7.12, is
+        # from March and rejects it as "invalid format because ref is
+        # missing". The two linters cannot both be satisfied today, so this
+        # stays a release behind until actionlint catches up.
+        #
+        # Scoped to the action and this workflow. brtc's other workflows pin
+        # actions by tag rather than by commit and are not audited here.
+        run: pipx run zizmor==1.29.0 action.yml .github/workflows/action-test.yml
