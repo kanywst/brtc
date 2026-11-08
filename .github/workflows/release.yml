@@ -3,7 +3,9 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      # Release tags only. The floating major tag (`v2`) is v-prefixed too,
+      # and pushing it by hand must not start a release of it.
+      - 'v*.*.*'
 
 permissions:
   contents: write
@@ -34,6 +36,19 @@ jobs:
         # fails the job before any step runs.
         uses: sigstore/cosign-installer@v4.1.2
 
+      - name: Find the previous release tag
+        id: prev
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # The floating major tag sits on the previous release's commit, so
+          # goreleaser's own `git describe` could pick it as the previous tag.
+          # Only full vX.Y.Z tags count.
+          prev=$(git tag --list 'v*.*.*' --sort=-v:refname --merged "${TAG}^" | head -n1)
+          echo "tag=${prev}" >> "$GITHUB_OUTPUT"
+          echo "previous release: ${prev:-none}"
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
@@ -43,3 +58,44 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          GORELEASER_PREVIOUS_TAG: ${{ steps.prev.outputs.tag }}
+
+  move-major-tag:
+    # `uses: kanywst/brtc@v2` resolves the floating major tag, so it has to
+    # follow every stable release. It runs here rather than on a `release`
+    # event because goreleaser publishes the release with GITHUB_TOKEN, and
+    # events caused by that token do not start other workflows. For the same
+    # reason the tag push below does not re-trigger this workflow.
+    name: Move vMAJOR tag
+    needs: release
+    # Prereleases (v2.5.0-rc.1) must not become what @v2 users run.
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Move vMAJOR to the released commit
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          major="${TAG%%.*}"
+          if [[ ! "$major" =~ ^v[0-9]+$ ]]; then
+            echo "::notice::release tag '${TAG}' is not vMAJOR.MINOR.PATCH; skipping"
+            exit 0
+          fi
+          # Never move the major tag backwards when an older line is patched.
+          latest=$(git tag --list "${major}.*.*" --sort=-v:refname | grep -vF -e '-' | head -n1)
+          if [[ "$latest" != "$TAG" ]]; then
+            echo "::notice::${TAG} is not the newest ${major} release (${latest}); leaving ${major} alone"
+            exit 0
+          fi
+          git tag -f "$major" "${TAG}^{commit}"
+          git push --force origin "refs/tags/${major}"
+          echo "Moved ${major} -> ${TAG}"
