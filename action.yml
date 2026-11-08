@@ -1,0 +1,346 @@
+# The Marketplace listing name. It stays `brtc-action`, the name this action
+# was published under when it lived in kanywst/brtc-action, and `brtc` is
+# taken by a GitHub account, which Marketplace names may not match.
+name: brtc-action
+description: Estimate offline brute-force crack cost for a password or secret. Optionally fail the build below a time threshold.
+author: kanywst
+branding:
+  icon: lock
+  color: red
+
+inputs:
+  password:
+    description: >-
+      Password or secret to evaluate. Use a GitHub secret for real values.
+      Either `password` or `guesses` must be provided.
+    required: false
+  guesses:
+    description: >-
+      External guess count (e.g. zxcvbn's `guesses` field). When set, brtc's
+      built-in entropy estimator is skipped and the password argument becomes
+      optional.
+    required: false
+  algorithm:
+    description: >-
+      Hash algorithm — md5, sha1, sha256, ntlm, bcrypt, argon2id,
+      pbkdf2-sha256 (brtc v2.4.0+). From brtc
+      v2.1.0 an unrecognized name fails the job rather than being modeled as
+      bcrypt; brtc's error lists the valid names.
+    required: false
+    default: bcrypt
+  cost:
+    description: >-
+      Work factor — bcrypt 4-31, argon2id time iterations 1+, pbkdf2-sha256
+      iteration count 1+. Left unset, the action sends 10 for bcrypt and
+      argon2id. pbkdf2-sha256 has no safe default, so brtc requires it and the
+      action never fills it in: leaving it unset fails the step. From brtc v2.2.0
+      setting it for a single-pass algorithm (md5, sha1, sha256, ntlm), which
+      has no work factor, fails the job rather than being reported but not
+      applied, so it is withheld for those unless you set it.
+    required: false
+  memory:
+    description: >-
+      Argon2id memory parameter (e.g. 64m, 128m, 1g). From brtc v2.2.0 setting
+      it for any other algorithm fails the job rather than being discarded
+      silently.
+    required: false
+  hardware:
+    description: >-
+      Attacker hardware profile — rtx-5090, rtx-4090, rx-7900xtx, rtx-3060,
+      gtx-1080ti, mac-m3-max, mac-m3, cpu-standard, aws-p5.48xlarge,
+      raspberry-pi-4. From brtc v2.0.0 an unrecognized name fails the job
+      rather than falling back to rtx-4090; brtc's error lists the valid
+      names.
+    required: false
+    default: rtx-4090
+  all-hw:
+    description: >-
+      Set to `true` to compare the input across every hardware profile instead
+      of a single one. Not combinable with the `fail-*` gates, `budget`, or
+      `output: sarif` (those are ignored or rejected).
+    required: false
+    default: "false"
+  fail-under-time:
+    description: >-
+      Fail the job if the estimated crack time is shorter than this duration
+      (e.g. 1y, 30d, 12h, 5m). Leave empty to never fail on time.
+    required: false
+  fail-under-entropy:
+    description: >-
+      Fail the job if the estimated entropy is below this many bits (e.g. 60,
+      80). Leave empty to never fail on entropy. Requires brtc v1.4.0 or later.
+    required: false
+  fail-on-breach:
+    description: >-
+      Set to `true` to fail the job when the secret appears in Have I Been
+      Pwned. Enables the k-anonymous HIBP lookup (only the first 5 hex
+      characters of the SHA-1 hash leave the runner) and needs network access
+      from the runner; a lookup that cannot be completed also fails the job.
+      Requires brtc v1.4.0 or later.
+    required: false
+    default: "false"
+  budget:
+    description: Attacker budget in USD (e.g. 1000usd) for the "max safe characters" output.
+    required: false
+  output:
+    description: >-
+      brtc output format. Defaults to `json` so the parsed action outputs
+      (`cost-usd`, etc.) are populated. Set to `sarif` to produce a SARIF
+      report (path exposed via the `sarif-file` output) for Code Scanning.
+    required: false
+    default: json
+  brtc-version:
+    description: >-
+      brtc release tag to `go install` instead of the copy of brtc this action
+      ships with (e.g. v2.4.0, latest, main). Leave empty, the default, to
+      build the brtc source at the exact ref you reference the action at, so
+      `kanywst/brtc@v2.4.1` runs brtc v2.4.1 and `@v2` runs the latest v2
+      release. `latest`/`main` are not reproducible.
+    required: false
+    default: ""
+  go-version:
+    description: >-
+      Go toolchain used to build brtc. Leave empty, the default, to use the
+      toolchain brtc's own go.mod pins for that ref, which is the Go its
+      released binaries are built with.
+    required: false
+    default: ""
+
+outputs:
+  cost-usd:
+    description: Estimated USD cost to crack the input.
+    value: ${{ steps.brtc.outputs.cost-usd }}
+  time-to-crack-seconds:
+    description: Estimated seconds to crack the input.
+    value: ${{ steps.brtc.outputs.time-to-crack-seconds }}
+  entropy-bits:
+    description: Estimated entropy in bits.
+    value: ${{ steps.brtc.outputs.entropy-bits }}
+  breach-count:
+    description: >-
+      Times the secret appears in Have I Been Pwned. Only meaningful when
+      `fail-on-breach` is set; `0` otherwise.
+    value: ${{ steps.brtc.outputs.breach-count }}
+  raw-json:
+    description: "Full brtc JSON output (only populated when `output: json`)."
+    value: ${{ steps.brtc.outputs.raw-json }}
+  sarif-file:
+    description: "Path to the written SARIF file (only populated when `output: sarif`)."
+    value: ${{ steps.brtc.outputs.sarif-file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+      with:
+        # An empty go-version falls through to go-version-file, the go.mod
+        # that ships with this action: its toolchain line is the Go the
+        # matching brtc release is built with, so the runner links the same
+        # standard library.
+        go-version: ${{ inputs.go-version }}
+        go-version-file: ${{ github.action_path }}/go.mod
+        # A minor-only go-version like "1.26" would otherwise resolve to
+        # whatever patch the runner has cached.
+        check-latest: true
+        cache: false
+
+    - name: Install brtc
+      shell: bash
+      env:
+        BRTC_VERSION: ${{ inputs.brtc-version }}
+        ACTION_REF: ${{ github.action_ref }}
+      run: |  # zizmor: ignore[github-env]
+        set -euo pipefail
+        bin_dir="${RUNNER_TEMP}/brtc-bin"
+        mkdir -p "$bin_dir"
+        if [[ -z "$BRTC_VERSION" ]]; then
+          # The action lives in the brtc repository, so the runner already
+          # downloaded brtc's source at the ref the caller pinned. Building
+          # that tree ties the binary to the ref: @v2.4.1 is brtc v2.4.1, @v2
+          # is whatever release v2 points at, and `uses: ./` in brtc's own CI
+          # is the commit under test.
+          version=dev
+          if [[ "$ACTION_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            version="${ACTION_REF#v}"
+          fi
+          echo "Building brtc from the action source (ref '${ACTION_REF:-local}')"
+          go build -C "$GITHUB_ACTION_PATH" -trimpath \
+            -ldflags "-X github.com/kanywst/brtc/v2/cmd.version=${version}" \
+            -o "${bin_dir}/brtc" .
+        else
+          # brtc's module path carries the major version from v2 on, so a v1
+          # tag does not resolve against it. Say so plainly instead of letting
+          # go install fail with "module path must match major version".
+          case "$BRTC_VERSION" in
+            v0.*|v1.*)
+              echo "::error::brtc-version '${BRTC_VERSION}' is a v1 tag, but this action installs github.com/kanywst/brtc/v2. Use kanywst/brtc-action@v1 to stay on brtc v1."
+              exit 2
+              ;;
+            v2.0.0|v2.0.1)
+              # Real, published tags, but brtc only moved its module path to
+              # /v2 in v2.0.2, so these fail the same way a v1 tag does. The
+              # v1 advice above would be wrong for them.
+              echo "::error::brtc-version '${BRTC_VERSION}' predates brtc's /v2 module path, which landed in v2.0.2, so it cannot be installed. Use v2.0.2 or later."
+              exit 2
+              ;;
+          esac
+          echo "Installing brtc@${BRTC_VERSION}"
+          GOBIN="$bin_dir" go install "github.com/kanywst/brtc/v2@${BRTC_VERSION}"
+        fi
+        echo "$bin_dir" >> "$GITHUB_PATH"
+
+    - name: Run brtc
+      id: brtc
+      shell: bash
+      env:
+        BRTC_PASSWORD: ${{ inputs.password }}
+        BRTC_GUESSES: ${{ inputs.guesses }}
+        ALGORITHM: ${{ inputs.algorithm }}
+        COST: ${{ inputs.cost }}
+        MEMORY: ${{ inputs.memory }}
+        HARDWARE: ${{ inputs.hardware }}
+        ALL_HW: ${{ inputs.all-hw }}
+        FAIL_UNDER_TIME: ${{ inputs.fail-under-time }}
+        FAIL_UNDER_ENTROPY: ${{ inputs.fail-under-entropy }}
+        FAIL_ON_BREACH: ${{ inputs.fail-on-breach }}
+        BUDGET: ${{ inputs.budget }}
+        OUTPUT: ${{ inputs.output }}
+        BRTC_VERSION: ${{ inputs.brtc-version || github.action_ref || 'local' }}
+      run: |
+        set -euo pipefail
+
+        if [[ -z "$BRTC_PASSWORD" && -z "$BRTC_GUESSES" ]]; then
+          echo "::error::either 'password' or 'guesses' input must be provided"
+          exit 2
+        fi
+
+        args=(--algo "$ALGORITHM" --output "$OUTPUT")
+        # --cost used to be passed on every run from an input default of 10,
+        # which brtc v2.2.0+ rejects for the single-pass algorithms that have
+        # no work factor -- so `algorithm: md5` failed the job over a value the
+        # caller never chose. It is now withheld for exactly those algorithms.
+        #
+        # For everything else the action still sends an explicit value, falling
+        # back to 10, rather than letting the flag go unset and inheriting
+        # whichever default the installed brtc happens to have. A caller can pin
+        # brtc-version to an older release, and an input the action stops sending
+        # would quietly reintroduce version-dependent numbers -- which can move
+        # a crack time across a fail-under-time threshold. 10 is brtc's own
+        # default on every version this action installs (v2.0.2 through
+        # v2.2.0), so this changes no existing run.
+        #
+        # The names below are brtc's single-pass set (cost.TuningFor in internal/cost).
+        # A future single-pass algorithm not listed here gets --cost forwarded
+        # and fails loudly rather than silently reporting an unapplied one.
+        # Matched case-insensitively, as brtc resolves the name.
+        algo_key=$(printf '%s' "$ALGORITHM" | tr '[:upper:]' '[:lower:]')
+        case "$algo_key" in
+          # pbkdf2-sha256's strength is its iteration count and brtc v2.4.0
+          # requires it explicitly. Filling in 10 would model a 10-iteration
+          # hash and hide the missing input, so it is forwarded only if set.
+          md5|sha1|sha256|ntlm|pbkdf2-sha256)
+            # Forwarded only if the caller set it, so they get brtc's
+            # explanation rather than a silently dropped input.
+            if [[ -n "$COST" ]]; then
+              args+=(--cost "$COST")
+            fi
+            ;;
+          *)
+            args+=(--cost "${COST:-10}")
+            ;;
+        esac
+        if [[ "$ALL_HW" == "true" ]]; then
+          # brtc rejects --all-hw alongside --hw, --budget, the --fail-* gates, or sarif.
+          if [[ "$OUTPUT" == "sarif" ]]; then
+            echo "::error::output 'sarif' is not supported when all-hw is true"
+            exit 2
+          fi
+          args+=(--all-hw)
+          [[ -n "$FAIL_UNDER_TIME" ]]         && echo "::warning::'fail-under-time' is ignored when all-hw is true"
+          [[ -n "$FAIL_UNDER_ENTROPY" ]]      && echo "::warning::'fail-under-entropy' is ignored when all-hw is true"
+          [[ "$FAIL_ON_BREACH" == "true" ]]   && echo "::warning::'fail-on-breach' is ignored when all-hw is true"
+          [[ -n "$BUDGET" ]]                  && echo "::warning::'budget' is ignored when all-hw is true"
+        else
+          args+=(--hw "$HARDWARE")
+
+          # The entropy and breach gates only reach brtc on this path, so they
+          # are validated here — under all-hw they are ignored above, and
+          # rejecting them there would break a combination that used to warn.
+          if [[ "$FAIL_ON_BREACH" == "true" && -z "$BRTC_PASSWORD" ]]; then
+            echo "::error::'fail-on-breach' needs a 'password'; a 'guesses' count cannot be looked up in HIBP"
+            exit 2
+          fi
+          # Those gates landed in brtc v1.4.0. An older pinned brtc rejects the
+          # flag with a bare "unknown flag", which reads like an action bug, so
+          # probe the installed binary — `brtc-version` may be `latest` or
+          # `main` and carry no version to compare.
+          if [[ -n "$FAIL_UNDER_ENTROPY" || "$FAIL_ON_BREACH" == "true" ]]; then
+            # Captured first: under pipefail, grep -q closing the pipe early
+            # could SIGPIPE brtc and blame the version for it.
+            help=$(brtc --help 2>&1 || true)
+            if ! grep -q -- '--fail-on-breach' <<<"$help"; then
+              echo "::error::'fail-under-entropy' and 'fail-on-breach' require brtc v1.4.0 or later, but brtc-version is '${BRTC_VERSION}'"
+              exit 2
+            fi
+          fi
+
+          [[ -n "$FAIL_UNDER_TIME" ]]       && args+=(--fail-under-time "$FAIL_UNDER_TIME")
+          [[ -n "$FAIL_UNDER_ENTROPY" ]]    && args+=(--fail-under-entropy "$FAIL_UNDER_ENTROPY")
+          [[ "$FAIL_ON_BREACH" == "true" ]] && args+=(--fail-on-breach)
+          [[ -n "$BUDGET" ]]                && args+=(--budget "$BUDGET")
+        fi
+        [[ -n "$MEMORY" ]]       && args+=(--memory "$MEMORY")
+        [[ -n "$BRTC_GUESSES" ]] && args+=(--guesses "$BRTC_GUESSES")
+
+        out_file=$(mktemp)
+        err_file=$(mktemp)
+        rc=0
+        if [[ -n "$BRTC_PASSWORD" ]]; then
+          # Pipe via stdin so the password never lands in the runner process
+          # list. GitHub already masks `secrets.*`, but defense in depth.
+          printf '%s' "$BRTC_PASSWORD" | brtc "${args[@]}" > "$out_file" 2> "$err_file" || rc=$?
+        else
+          brtc "${args[@]}" > "$out_file" 2> "$err_file" || rc=$?
+        fi
+
+        # Keep stderr out of the payload we parse: brtc writes gate failures
+        # there while still printing JSON/SARIF on stdout. (Before v2.0.0 an
+        # unknown --hw warned here too; it is a hard error now, so that path
+        # produces no stdout at all.)
+        cat "$out_file"
+        [[ -s "$err_file" ]] && cat "$err_file" >&2 || true
+
+        # An input-validation failure (an unrecognized --hw, say) exits before
+        # brtc writes anything, leaving a 0-byte stdout. `jq empty` treats that
+        # as a valid empty stream rather than a parse error, so without this
+        # guard the outputs below would be published as empty strings and the
+        # SARIF path would hand upload-sarif a 0-byte file. Leave them unset
+        # instead, matching the earlier validation exits in this step.
+        if [[ ! -s "$out_file" ]]; then
+          exit "$rc"
+        fi
+
+        if [[ "$OUTPUT" == "json" ]] && jq empty "$out_file" 2>/dev/null; then
+          # `?` guards the scalar lookups when the payload is an array (all-hw).
+          {
+            echo "cost-usd=$(jq -r '.cost_usd? // 0' "$out_file")"
+            echo "time-to-crack-seconds=$(jq -r '.time_to_crack_seconds? // 0' "$out_file")"
+            echo "entropy-bits=$(jq -r '.entropy_bits? // 0' "$out_file")"
+            echo "breach-count=$(jq -r '.breach_count? // 0' "$out_file")"
+          } >> "$GITHUB_OUTPUT"
+          delim="BRTC_EOF_$(openssl rand -hex 16)"
+          {
+            echo "raw-json<<${delim}"
+            cat "$out_file"
+            echo
+            echo "${delim}"
+          } >> "$GITHUB_OUTPUT"
+        elif [[ "$OUTPUT" == "sarif" ]]; then
+          # upload-sarif wants a repo-relative file path, not the SARIF itself.
+          sarif_path="${GITHUB_WORKSPACE:-$PWD}/brtc.sarif"
+          cp "$out_file" "$sarif_path"
+          echo "sarif-file=${sarif_path}" >> "$GITHUB_OUTPUT"
+        fi
+
+        exit "$rc"

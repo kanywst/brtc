@@ -187,16 +187,18 @@ When `--fail-under-time` is set, `brtc` also reports the **minimum password leng
 
 #### GitHub Actions
 
-To run the same gates in a workflow without installing Go yourself, use [`kanywst/brtc-action`](https://github.com/kanywst/brtc-action) ([Marketplace](https://github.com/marketplace/actions/brtc-action)). It installs brtc, passes the secret over stdin, fails the job when a gate trips, and exposes the JSON fields (or a SARIF file) as step outputs:
+To run the same gates in a workflow, use the GitHub Action in this repository. It builds brtc on the runner, passes the secret over stdin, fails the job when a gate trips, and exposes the JSON fields (or a SARIF file) as step outputs:
 
 ```yaml
-- uses: kanywst/brtc-action@v2
+- uses: kanywst/brtc@v2
   with:
     password: ${{ secrets.SERVICE_PASSWORD }}
     algorithm: bcrypt
     cost: "12"
     fail-under-time: 1y
 ```
+
+Inputs, outputs, SARIF upload, zxcvbn pairing and versioning are in [docs/github-action.md](docs/github-action.md). The action used to live in `kanywst/brtc-action`; moving to it is a one-line change from `kanywst/brtc-action@v2` to `kanywst/brtc@v2`.
 
 #### Pattern-aware strength (`--zxcvbn`) and breach check (`--hibp`)
 
