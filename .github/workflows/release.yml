@@ -75,14 +75,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      # Pinned by commit, unlike the release job: this job force-pushes the
+      # tag every `uses: kanywst/brtc@v2` caller runs.
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Move vMAJOR to the released commit
         env:
           TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           major="${TAG%%.*}"
@@ -97,5 +102,5 @@ jobs:
             exit 0
           fi
           git tag -f "$major" "${TAG}^{commit}"
-          git push --force origin "refs/tags/${major}"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "refs/tags/${major}"
           echo "Moved ${major} -> ${TAG}"

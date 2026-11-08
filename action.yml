@@ -276,7 +276,10 @@ runs:
           # probe the installed binary — `brtc-version` may be `latest` or
           # `main` and carry no version to compare.
           if [[ -n "$FAIL_UNDER_ENTROPY" || "$FAIL_ON_BREACH" == "true" ]]; then
-            if ! brtc --help 2>&1 | grep -q -- '--fail-on-breach'; then
+            # Captured first: under pipefail, grep -q closing the pipe early
+            # could SIGPIPE brtc and blame the version for it.
+            help=$(brtc --help 2>&1 || true)
+            if ! grep -q -- '--fail-on-breach' <<<"$help"; then
               echo "::error::'fail-under-entropy' and 'fail-on-breach' require brtc v1.4.0 or later, but brtc-version is '${BRTC_VERSION}'"
               exit 2
             fi
